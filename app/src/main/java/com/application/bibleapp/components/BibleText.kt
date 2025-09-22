@@ -1,6 +1,7 @@
 package com.application.bibleapp.components
 
 import android.widget.TextView
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
@@ -14,8 +15,9 @@ import androidx.compose.foundation.lazy.items
 @Composable
 fun BibleText(
     verses: List<VerseUI>,
+    modifier: Modifier = Modifier
 ) {
-    LazyColumn(modifier = Modifier.padding(5.dp)) {
+    LazyColumn(modifier = modifier.padding(5.dp)) {
         items(verses) { verse ->
             Text(text = "${verse.verse} ${verse.text}")
         }
