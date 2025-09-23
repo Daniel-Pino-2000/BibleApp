@@ -4,6 +4,8 @@ import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 
 class BibleRepository(private val context: Context) {
@@ -15,11 +17,13 @@ class BibleRepository(private val context: Context) {
      * Get a chapter as VerseUI list.
      * Cached if already loaded.
      */
-    fun getChapter(bookId: Int, chapter: Int): List<VerseUI> {
+    suspend fun getChapter(bookId: Int, chapter: Int): List<VerseUI> {
         val key = bookId to chapter
         return chapterCache.getOrPut(key) {
-            BibleDatabaseManager.getVersesByChapter(context, bookId, chapter)
-                .map { it.toUI() }
+            withContext(Dispatchers.IO) {   // <- runs database query on a background thread
+                BibleDatabaseManager.getVersesByChapter(context, bookId, chapter)
+                    .map { it.toUI() }
+            }
         }
     }
 }
