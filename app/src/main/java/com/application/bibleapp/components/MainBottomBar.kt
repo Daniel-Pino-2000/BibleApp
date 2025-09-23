@@ -9,18 +9,25 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
+import com.application.bibleapp.viewmodel.BibleViewModel
+import androidx.compose.runtime.getValue
+
 
 @Composable
 fun MainBottomBar(
     currentRoute: String?,
     selectedItemIndex: Int,
+    bibleViewModel: BibleViewModel,
     hideBar: Boolean,
-    onItemSelected: (Int) -> Unit
+    onItemSelected: (Int) -> Unit,
+    onBookPickerClicked: () -> Unit
 ) {
     Column(
 
@@ -33,14 +40,22 @@ fun MainBottomBar(
         )
 
         if (currentRoute == Screen.Bible.route) {
+
+            val currentBook by bibleViewModel.currentBook.collectAsState()
+            val currentChapter by bibleViewModel.currentChapter.collectAsState()
+
             BookPickerBar(
-                currentBook = 1,
-                currentChapter = 1,
+                currentBook = currentBook,
+                currentChapter = currentChapter,
                 onPrevious = {
+                    bibleViewModel.previousChapter()
                 },
                 onNext = {
+                    bibleViewModel.nextChapter()
                 },
-                onSelectBook = { /* TODO */ }
+                onSelectBook = {
+                    onBookPickerClicked()
+                }
             )
         }
 

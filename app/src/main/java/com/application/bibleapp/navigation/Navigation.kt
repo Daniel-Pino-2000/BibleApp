@@ -12,11 +12,13 @@ import androidx.navigation.compose.composable
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.HomeView
+import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
 fun Navigation(
     navController: NavHostController,
-    padding: PaddingValues
+    padding: PaddingValues,
+    bibleViewModel: BibleViewModel
 ) {
     val context = LocalContext.current
     val repository = BibleRepository(context)
@@ -31,7 +33,7 @@ fun Navigation(
         }
 
         composable(Screen.Bible.route) {
-            BibleView(repository, padding)
+            BibleView(bibleViewModel, padding)
         }
 
         composable(Screen.Search.route) {

@@ -11,6 +11,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -24,6 +25,10 @@ fun BookPickerBar(
     onNext: () -> Unit,
     onSelectBook: () -> Unit
 ) {
+
+    val currentBookText by remember { mutableStateOf("") }
+    val currentChapterText by remember { mutableStateOf("") }
+
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,

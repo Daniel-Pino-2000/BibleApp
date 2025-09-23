@@ -45,10 +45,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.application.bibleapp.components.BookPickerBar
 import com.application.bibleapp.components.MainBottomBar
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
+import com.application.bibleapp.viewmodel.BibleViewModel
+import com.application.bibleapp.viewmodel.BibleViewModelFactory
 import kotlin.Boolean
 
 class MainActivity : ComponentActivity() {
@@ -59,6 +62,9 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
 
+            val bibleViewModel: BibleViewModel = viewModel(
+                factory = BibleViewModelFactory(BibleRepository(this))
+            )
             val navController = rememberNavController()
 
             BibleAppTheme {
@@ -100,17 +106,21 @@ class MainActivity : ComponentActivity() {
                         MainBottomBar(
                             currentRoute,
                             selectedItemIndex,
+                            bibleViewModel,
                             hideBar = false,
                             onItemSelected = { index ->
                                 selectedItemIndex = index
                                 navController.navigate(bottomNavigationItems[index].route)
 
+                            },
+                            onBookPickerClicked = {
+                                navController.navigate(Screen.BookPicker.route)
                             }
                         )
                     }
 
                 ) { paddingValues ->
-                    Navigation(navController, paddingValues)
+                    Navigation(navController, paddingValues, bibleViewModel)
                 }
             }
         }
