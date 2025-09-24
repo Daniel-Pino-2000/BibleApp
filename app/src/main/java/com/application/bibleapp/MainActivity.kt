@@ -7,6 +7,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,72 +56,73 @@ import com.application.bibleapp.viewmodel.BibleViewModelFactory
 import kotlin.Boolean
 
 class MainActivity : ComponentActivity() {
-    @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        setContent {
 
+        setContent {
             val bibleViewModel: BibleViewModel = viewModel(
                 factory = BibleViewModelFactory(BibleRepository(this))
             )
             val navController = rememberNavController()
 
             BibleAppTheme {
+
                 // Observe current screen
                 val currentBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = currentBackStackEntry?.destination?.route
 
                 val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+                var selectedItemIndex by rememberSaveable { mutableIntStateOf(0) }
 
-                var selectedItemIndex by rememberSaveable {
-                    mutableIntStateOf(0)
-                }
+                // Check if we should show the bottom bar
+                val showBottomBar = currentRoute !in listOf(Screen.BookPicker.route)
 
-                Scaffold(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .nestedScroll(scrollBehavior.nestedScrollConnection),
-                    topBar = {
-                        when (currentRoute) {
-                            "bible" -> TopBar(
-                                title = "Bible",
-                                actions = {
-                                    // Button for version picker
-                                    Button(onClick = {
-                                    // TODO: open version picker
-                                    }) {
-                                        Text("Version")
-                                    }
-                                },
-                                scrollBehavior = scrollBehavior)
-                            "home" -> TopBar("Daily Verse")
-                            "search" -> TopBar("Search")
-                            "more" -> TopBar("More")
-                            else -> TopBar("BibleApp")
-                        }
-                    },
-                    bottomBar = {
-
-                        MainBottomBar(
-                            currentRoute,
-                            selectedItemIndex,
-                            bibleViewModel,
-                            hideBar = false,
-                            onItemSelected = { index ->
-                                selectedItemIndex = index
-                                navController.navigate(bottomNavigationItems[index].route)
-
-                            },
-                            onBookPickerClicked = {
-                                navController.navigate(Screen.BookPicker.route)
+                if (showBottomBar) {
+                    // MAIN SCAFFOLD (for normal screens)
+                    Scaffold(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                        topBar = {
+                            when (currentRoute) {
+                                Screen.Bible.route -> TopBar(
+                                    title = "Bible",
+                                    actions = {
+                                        Button(onClick = { /* open version picker */ }) {
+                                            Text("Version")
+                                        }
+                                    },
+                                    scrollBehavior = scrollBehavior
+                                )
+                                Screen.Home.route -> TopBar("Daily Verse")
+                                Screen.Search.route -> TopBar("Search")
+                                Screen.More.route -> TopBar("More")
+                                else -> TopBar("BibleApp")
                             }
-                        )
+                        },
+                        bottomBar = {
+                            MainBottomBar(
+                                currentRoute,
+                                selectedItemIndex,
+                                bibleViewModel,
+                                hideBar = false,
+                                onItemSelected = { index ->
+                                    selectedItemIndex = index
+                                    navController.navigate(bottomNavigationItems[index].route)
+                                },
+                                onBookPickerClicked = {
+                                    navController.navigate(Screen.BookPicker.route)
+                                }
+                            )
+                        }
+                    ) { paddingValues ->
+                        Navigation(navController, paddingValues, bibleViewModel)
                     }
-
-                ) { paddingValues ->
-                    Navigation(navController, paddingValues, bibleViewModel)
+                } else {
+                    // SEPARATE SCREEN (BookPickerScreen)
+                    Navigation(navController, PaddingValues(0.dp), bibleViewModel)
                 }
             }
         }

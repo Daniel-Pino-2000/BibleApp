@@ -1,5 +1,6 @@
 package com.application.bibleapp.components
 
+import android.R.attr.onClick
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -16,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.application.bibleapp.data.model.BibleBooks
 
 @Composable
 fun BookPickerBar(
@@ -26,8 +28,7 @@ fun BookPickerBar(
     onSelectBook: () -> Unit
 ) {
 
-    val currentBookText by remember { mutableStateOf("") }
-    val currentChapterText by remember { mutableStateOf("") }
+    val currentBookName = BibleBooks.getBookById(currentBook)?.name ?: "Unknown"
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -39,7 +40,7 @@ fun BookPickerBar(
         }
 
         Button(onClick = onSelectBook) {
-            Text("$currentBook $currentChapter")
+            Text("$currentBookName $currentChapter")
         }
 
         IconButton(onClick = onNext) {
