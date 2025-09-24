@@ -28,8 +28,6 @@ fun BookPickerBar(
     onSelectBook: () -> Unit
 ) {
 
-    val currentBookName = BibleBooks.getBookById(currentBook)?.name ?: "Unknown"
-
     Row(
         modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically,
@@ -40,7 +38,8 @@ fun BookPickerBar(
         }
 
         Button(onClick = onSelectBook) {
-            Text("$currentBookName $currentChapter")
+            // Compute reactively, recomposes automatically when currentBook or currentChapter changes
+            Text("${BibleBooks.getBookById(currentBook)?.name ?: "Unknown"} $currentChapter")
         }
 
         IconButton(onClick = onNext) {

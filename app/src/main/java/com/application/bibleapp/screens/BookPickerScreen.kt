@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
@@ -54,54 +57,64 @@ fun BookPickerScreen(
     val selectedBook by (bibleViewModel.currentBook.collectAsState())
     val expandedBookId = rememberSaveable { mutableStateOf<Int?>(null) }
 
-    Column(
-        modifier = Modifier.fillMaxSize()
+    Surface(
+        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
+        color = MaterialTheme.colorScheme.background,
+
     ) {
 
-        TopAppBar(
-            title = { Text("Select Book") },
-            navigationIcon = {
-                IconButton(
-                    onClick = { onBackClick() }
-                ) {
-                    Icon(Icons.Default.ArrowBack, contentDescription = "Back")
-                }
-            }
-        )
-
-        OutlinedTextField(
-            value = "",
-            onValueChange = {
-                // I have to finish it later
-            },
-            modifier = Modifier.fillMaxWidth().padding(8.dp),
-            label =  { Text("Search") },
-            leadingIcon = {
-                Icon(Icons.Default.Search, contentDescription = "Search Icon")
-            },
-            singleLine = true,
-            shape = RoundedCornerShape(10.dp)
-        )
-
-
-
-        LazyColumn(
+        Column(
             modifier = Modifier.fillMaxSize()
         ) {
-            items(BibleBooks.allBooks) { book ->
-                Text(book.name, Modifier.clickable(true, onClick = {
-                    expandedBookId.value = if (expandedBookId.value == book.id) null else book.id
-                 }))
 
-                if (expandedBookId.value == book.id) {
-                    ChapterGrid(book) { chapter ->
-                        bibleViewModel.loadChapter(book.id, chapter)
+            TopAppBar(
+                title = { Text("Select Book") },
+                navigationIcon = {
+                    IconButton(
+                        onClick = { onBackClick() }
+                    ) {
+                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
                     }
                 }
+            )
+
+            OutlinedTextField(
+                value = "",
+                onValueChange = {
+                    // I have to finish it later
+                },
+                modifier = Modifier.fillMaxWidth().padding(8.dp),
+                label = { Text("Search") },
+                leadingIcon = {
+                    Icon(Icons.Default.Search, contentDescription = "Search Icon")
+                },
+                singleLine = true,
+                shape = RoundedCornerShape(10.dp)
+            )
+
+
+
+            LazyColumn(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                items(BibleBooks.allBooks) { book ->
+                    Text(book.name, Modifier.clickable(true, onClick = {
+                        expandedBookId.value =
+                            if (expandedBookId.value == book.id) null else book.id
+                    }))
+
+                    if (expandedBookId.value == book.id) {
+                        ChapterGrid(book) { chapter ->
+                            bibleViewModel.loadChapter(book.id, chapter)
+                            bibleViewModel.setBook(book.id, chapter)
+                            onBackClick()
+                        }
+                    }
+                }
+
             }
 
         }
-
     }
 }
 

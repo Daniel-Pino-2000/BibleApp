@@ -60,5 +60,16 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
         loadChapter(_currentBook.value, _currentChapter.value)
     }
 
+    fun setBook(bookId: Int, chapter: Int = 1) {
+        _currentBook.value = bookId
+        _currentChapter.value = chapter
+        loadChapter(bookId, chapter)
+    }
+
+    fun setChapter(chapterId: Int) {
+        _currentChapter.value = chapterId
+        loadChapter(_currentBook.value, chapterId)
+    }
+
 
 }
