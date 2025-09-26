@@ -1,5 +1,6 @@
 package com.application.bibleapp.screens
 
+import android.R.attr.label
 import android.R.attr.maxLines
 import android.R.attr.minLines
 import android.R.attr.singleLine
@@ -43,6 +44,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import com.application.bibleapp.data.model.BibleBook
 
@@ -56,6 +58,8 @@ fun BookPickerScreen(
 
     val selectedBook by (bibleViewModel.currentBook.collectAsState())
     val expandedBookId = rememberSaveable { mutableStateOf<Int?>(null) }
+
+    var searchText by rememberSaveable { mutableStateOf("") }
 
     Surface(
         modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
@@ -79,9 +83,9 @@ fun BookPickerScreen(
             )
 
             OutlinedTextField(
-                value = "",
-                onValueChange = {
-                    // I have to finish it later
+                value = searchText,
+                onValueChange = { it ->
+                    searchText = it
                 },
                 modifier = Modifier.fillMaxWidth().padding(8.dp),
                 label = { Text("Search") },
@@ -89,15 +93,17 @@ fun BookPickerScreen(
                     Icon(Icons.Default.Search, contentDescription = "Search Icon")
                 },
                 singleLine = true,
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(30.dp)
             )
 
-
+            val filteredBooks = BibleBooks.allBooks.filter {
+                it.name.contains(searchText, ignoreCase = true)
+            }
 
             LazyColumn(
                 modifier = Modifier.fillMaxSize()
             ) {
-                items(BibleBooks.allBooks) { book ->
+                items(filteredBooks) { book ->
                     Text(book.name, Modifier.clickable(true, onClick = {
                         expandedBookId.value =
                             if (expandedBookId.value == book.id) null else book.id
