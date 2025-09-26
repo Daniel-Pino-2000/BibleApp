@@ -1,6 +1,7 @@
 package com.application.bibleapp.data.repository
 
 import android.content.Context
+import androidx.room.Query
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
@@ -26,6 +27,12 @@ class BibleRepository(private val context: Context) {
             }
         }
     }
+
+    suspend fun searchVerses(query: String): List<VerseUI> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) emptyList()
+        else BibleDatabaseManager.searchVerses(query)
+    }
+
 }
 
 /**

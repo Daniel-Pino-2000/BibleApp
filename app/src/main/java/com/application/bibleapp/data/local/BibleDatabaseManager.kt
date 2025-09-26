@@ -3,7 +3,9 @@ package com.application.bibleapp.data.local
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
+import androidx.compose.runtime.mutableStateOf
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.VerseUI
 import java.io.File
 import java.io.FileOutputStream
 
@@ -80,5 +82,35 @@ object BibleDatabaseManager {
         }
         cursor.close()
         return verses
+    }
+
+    fun searchVerses(query: String): List<VerseUI> {
+        val db = dbInstance ?: throw IllegalStateException("DB not initialized")
+
+        if (query.isBlank()) return emptyList()
+
+        val cursor = db.rawQuery(
+            "SELECT wordId, word, bookNum, chNum, verseNum FROM words WHERE word LIKE ? ORDER BY bookNum, chNum, verseNum",
+            arrayOf("%$query%")
+        )
+
+        val results = mutableListOf<VerseUI>()
+        while (cursor.moveToNext()) {
+            results.add(
+                VerseUI(
+                    id = cursor.getInt(0),
+                    text = cursor.getString(1),
+                    bookId = cursor.getInt(2),
+                    chapter = cursor.getInt(3),
+                    verse = cursor.getInt(4),
+                    isUserVerse = false,
+                    isHighlighted = false,
+                    highlightColor = 0x00000000
+                )
+            )
+        }
+
+        cursor.close()
+        return results
     }
 }

@@ -13,6 +13,7 @@ import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
+import com.application.bibleapp.screens.SearchView
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
@@ -38,7 +39,11 @@ fun Navigation(
         }
 
         composable(Screen.Search.route) {
-            Toast.makeText(context, "Search Screen coming soon!", Toast.LENGTH_SHORT).show()
+            SearchView(bibleViewModel, padding) { bookId, chapter, verse ->
+                bibleViewModel.setBook(bookId, chapter)  // set the book and chapter
+                // Optionally, navigate to BibleView and scroll to the verse
+                navController.navigate(Screen.Bible.route)
+            }
         }
 
         composable(Screen.More.route) {
