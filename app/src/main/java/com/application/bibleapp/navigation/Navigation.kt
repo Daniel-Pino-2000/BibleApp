@@ -11,7 +11,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.screens.BibleView
-import com.application.bibleapp.screens.BookPickerScreen
+import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
 import com.application.bibleapp.viewmodel.BibleViewModel
 
@@ -46,7 +46,7 @@ fun Navigation(
         }
 
         composable(Screen.BookPicker.route) {
-            BookPickerScreen(bibleViewModel) {
+            BookPickerView(bibleViewModel) {
                 navController.popBackStack()
             }
         }

@@ -1,10 +1,5 @@
 package com.application.bibleapp.screens
 
-import android.R.attr.label
-import android.R.attr.maxLines
-import android.R.attr.minLines
-import android.R.attr.singleLine
-import android.graphics.drawable.shapes.Shape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,8 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -36,22 +29,21 @@ import androidx.compose.ui.unit.dp
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.viewmodel.BibleViewModel
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.application.bibleapp.components.SearchBar
 import com.application.bibleapp.data.model.BibleBook
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BookPickerScreen(
+fun BookPickerView(
     bibleViewModel: BibleViewModel,
     onBackClick: () -> Unit
 ) {
@@ -82,18 +74,12 @@ fun BookPickerScreen(
                 }
             )
 
-            OutlinedTextField(
-                value = searchText,
-                onValueChange = { it ->
-                    searchText = it
+            SearchBar(
+                searchText,
+                onTextChange = { newText ->
+                    searchText = newText
                 },
-                modifier = Modifier.fillMaxWidth().padding(8.dp),
-                label = { Text("Search") },
-                leadingIcon = {
-                    Icon(Icons.Default.Search, contentDescription = "Search Icon")
-                },
-                singleLine = true,
-                shape = RoundedCornerShape(30.dp)
+                placeholder = "Search Book"
             )
 
             val filteredBooks = BibleBooks.allBooks.filter {
