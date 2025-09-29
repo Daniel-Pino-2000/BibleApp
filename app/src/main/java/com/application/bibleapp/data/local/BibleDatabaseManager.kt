@@ -6,6 +6,9 @@ import android.util.Log
 import androidx.compose.runtime.mutableStateOf
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.utils.TextUtils.normalizeForSearch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 
@@ -84,33 +87,61 @@ object BibleDatabaseManager {
         return verses
     }
 
-    fun searchVerses(query: String): List<VerseUI> {
-        val db = dbInstance ?: throw IllegalStateException("DB not initialized")
-
-        if (query.isBlank()) return emptyList()
-
-        val cursor = db.rawQuery(
-            "SELECT wordId, word, bookNum, chNum, verseNum FROM words WHERE word LIKE ? ORDER BY bookNum, chNum, verseNum",
-            arrayOf("%$query%")
+    private fun buildNormalizedSql(): String {
+        val replacements = listOf(
+            "á" to "a", "é" to "e", "í" to "i",
+            "ó" to "o", "ú" to "u", "ü" to "u", "ñ" to "n"
         )
 
-        val results = mutableListOf<VerseUI>()
-        while (cursor.moveToNext()) {
-            results.add(
-                VerseUI(
-                    id = cursor.getInt(0),
-                    text = cursor.getString(1),
-                    bookId = cursor.getInt(2),
-                    chapter = cursor.getInt(3),
-                    verse = cursor.getInt(4),
-                    isUserVerse = false,
-                    isHighlighted = false,
-                    highlightColor = 0x00000000
-                )
-            )
+        var sql = "GROUP_CONCAT(word, ' ')"
+        replacements.forEach { (from, to) ->
+            sql = "REPLACE($sql,'$from','$to')"
         }
-
-        cursor.close()
-        return results
+        return "LOWER($sql)"
     }
+
+    suspend fun searchVerses(query: String): List<VerseUI> = withContext(Dispatchers.IO) {
+        if (query.isBlank()) return@withContext emptyList()
+
+        val normalizedQuery = "%${query.normalizeForSearch()}%"
+        val db = dbInstance ?: throw IllegalStateException("DB not initialized")
+
+        try {
+            val normalizedColumn = buildNormalizedSql()
+
+            val cursor = db.rawQuery(
+                """
+            SELECT bookNum, chNum, verseNum, GROUP_CONCAT(word, ' ') as fullText
+            FROM words
+            GROUP BY bookNum, chNum, verseNum
+            HAVING $normalizedColumn LIKE ?
+            ORDER BY bookNum, chNum, verseNum
+            LIMIT 500
+            """,
+                arrayOf(normalizedQuery)
+            )
+
+            val results = mutableListOf<VerseUI>()
+            cursor.use {
+                while (it.moveToNext()) {
+                    results.add(
+                        VerseUI(
+                            id = "${it.getInt(0)}_${it.getInt(1)}_${it.getInt(2)}".hashCode(),
+                            text = it.getString(3),
+                            bookId = it.getInt(0),
+                            chapter = it.getInt(1),
+                            verse = it.getInt(2),
+                            isUserVerse = false,
+                            isHighlighted = false,
+                            highlightColor = 0x00000000
+                        )
+                    )
+                }
+            }
+            results
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
 }

@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.utils.TextUtils.normalizeForSearch
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -92,10 +93,19 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
 
     fun onSearchQueryChange(newQuery: String) {
         _searchQuery.value = newQuery
-        viewModelScope.launch {
-            _searchResults.value = repository.searchVerses(newQuery)
+    }
+
+    fun onSearchButtonClick() {
+        val query = _searchQuery.value
+
+        if (query.isNotBlank()) {
+            viewModelScope.launch {
+                _searchResults.value = repository.searchVerses(query)
+            }
         }
     }
+
+
 
 
 }

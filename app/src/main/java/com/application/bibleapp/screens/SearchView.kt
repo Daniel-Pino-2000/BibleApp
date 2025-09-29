@@ -39,6 +39,9 @@ fun SearchView(
             onTextChange = { newText ->
                 bibleViewModel.onSearchQueryChange(newText)
             },
+            onSearchClick = {
+                bibleViewModel.onSearchButtonClick()
+            },
             placeholder = "Search Bible Verse"
         )
 
@@ -48,6 +51,9 @@ fun SearchView(
                     text = "${verse.verse} ${verse.text}",
                     modifier = Modifier.clickable {
                         onVerseClicked(verse.bookId!!, verse.chapter!!, verse.verse!!)
+
+                        // Clear search query
+                        bibleViewModel.onSearchQueryChange("")
                     }
                 )
 
