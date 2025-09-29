@@ -1,5 +1,7 @@
 package com.application.bibleapp.components
 
+import android.R.attr.contentDescription
+import android.R.attr.label
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -23,10 +25,9 @@ import androidx.compose.runtime.getValue
 @Composable
 fun MainBottomBar(
     currentRoute: String?,
-    selectedItemIndex: Int,
     bibleViewModel: BibleViewModel,
     hideBar: Boolean,
-    onItemSelected: (Int) -> Unit,
+    onItemSelected: (String) -> Unit,
     onBookPickerClicked: () -> Unit
 ) {
     Column(
@@ -62,17 +63,15 @@ fun MainBottomBar(
         NavigationBar(
             containerColor = Color.Transparent
         ) {
-            bottomNavigationItems.forEachIndexed { index, item ->
+            bottomNavigationItems.forEach { item ->
                 NavigationBarItem(
-                    selected = index == selectedItemIndex,
+                    selected = currentRoute == item.route,
                     onClick = {
-                        onItemSelected(index)
+                        onItemSelected(item.route)
                     },
                     icon = {
                         Icon(
-                            imageVector = if (index == selectedItemIndex) {
-                                item.selectedIcon
-                            } else item.unselectedIcon,
+                            imageVector = if (currentRoute == item.route) item.selectedIcon else item.unselectedIcon,
                             contentDescription = item.title
                         )
                     },

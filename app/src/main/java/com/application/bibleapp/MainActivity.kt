@@ -74,7 +74,6 @@ class MainActivity : ComponentActivity() {
                 val currentRoute = currentBackStackEntry?.destination?.route
 
                 val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
-                var selectedItemIndex by rememberSaveable { mutableIntStateOf(0) }
 
                 // Check if we should show the bottom bar
                 val showBottomBar = currentRoute !in listOf(Screen.BookPicker.route)
@@ -105,12 +104,10 @@ class MainActivity : ComponentActivity() {
                         bottomBar = {
                             MainBottomBar(
                                 currentRoute,
-                                selectedItemIndex,
                                 bibleViewModel,
                                 hideBar = false,
-                                onItemSelected = { index ->
-                                    selectedItemIndex = index
-                                    navController.navigate(bottomNavigationItems[index].route)
+                                onItemSelected = { route ->
+                                    navController.navigate(route)
                                 },
                                 onBookPickerClicked = {
                                     navController.navigate(Screen.BookPicker.route)
