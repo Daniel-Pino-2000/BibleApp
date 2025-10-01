@@ -103,22 +103,30 @@ object BibleDatabaseManager {
     suspend fun searchVerses(query: String): List<VerseUI> = withContext(Dispatchers.IO) {
         if (query.isBlank()) return@withContext emptyList()
 
-        val normalizedQuery = "%${query.normalizeForSearch()}%"
         val db = dbInstance ?: throw IllegalStateException("DB not initialized")
+
+        // Split normalized query into words
+        val words = query.normalizeForSearch().split(" ").filter { it.isNotBlank() }
+
+        if (words.isEmpty()) return@withContext emptyList()
 
         try {
             val normalizedColumn = buildNormalizedSql()
+
+            // Build WHERE with all words required
+            val conditions = words.joinToString(" AND ") { "$normalizedColumn LIKE ?" }
+            val args = words.map { "%$it%" }.toTypedArray()
 
             val cursor = db.rawQuery(
                 """
             SELECT bookNum, chNum, verseNum, GROUP_CONCAT(word, ' ') as fullText
             FROM words
             GROUP BY bookNum, chNum, verseNum
-            HAVING $normalizedColumn LIKE ?
+            HAVING $conditions
             ORDER BY bookNum, chNum, verseNum
             LIMIT 500
             """,
-                arrayOf(normalizedQuery)
+                args
             )
 
             val results = mutableListOf<VerseUI>()
@@ -143,5 +151,6 @@ object BibleDatabaseManager {
             emptyList()
         }
     }
+
 
 }
