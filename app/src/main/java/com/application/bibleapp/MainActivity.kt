@@ -73,7 +73,12 @@ class MainActivity : ComponentActivity() {
                 val currentBackStackEntry by navController.currentBackStackEntryAsState()
                 val currentRoute = currentBackStackEntry?.destination?.route
 
-                val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
+                // Only use scroll behavior for Bible screen
+                val scrollBehavior = if (currentRoute == Screen.Bible.route) {
+                    TopAppBarDefaults.enterAlwaysScrollBehavior()
+                } else {
+                    null
+                }
 
                 // Check if we should show the bottom bar
                 val showBottomBar = currentRoute !in listOf(Screen.BookPicker.route)
@@ -83,7 +88,13 @@ class MainActivity : ComponentActivity() {
                     Scaffold(
                         modifier = Modifier
                             .fillMaxSize()
-                            .nestedScroll(scrollBehavior.nestedScrollConnection),
+                            .then(
+                                if (scrollBehavior != null) {
+                                    Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                                } else {
+                                    Modifier
+                                }
+                            ),
                         topBar = {
                             when (currentRoute) {
                                 Screen.Bible.route -> TopBar(

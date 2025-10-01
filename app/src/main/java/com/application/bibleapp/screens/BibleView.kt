@@ -21,14 +21,18 @@ fun BibleView(
     bibleViewModel: BibleViewModel,
     padding: PaddingValues
 ) {
-    var book by remember { mutableIntStateOf(1) }
-    var chapter by remember { mutableIntStateOf(1) }
 
     val verses by bibleViewModel.verses.collectAsState()
 
-    Column(modifier = Modifier.padding(padding)) {
-        BibleText(verses, Modifier.weight(1f)) // take remaining space
-
-
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)
+    ) {
+        BibleText(
+            verses = verses,
+            modifier = Modifier.fillMaxSize()
+        )
     }
+
 }

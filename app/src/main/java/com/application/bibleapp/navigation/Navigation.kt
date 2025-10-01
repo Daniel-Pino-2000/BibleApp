@@ -40,11 +40,15 @@ fun Navigation(
 
         composable(Screen.Search.route) {
             SearchView(bibleViewModel, padding) { bookId, chapter, verse ->
-                bibleViewModel.setBook(bookId, chapter)  // set the book and chapter
-                // Optionally, navigate to BibleView and scroll to the verse
+                // Clear search first to avoid rendering issues
+                bibleViewModel.clearSearchResults()
+                bibleViewModel.setBook(bookId, chapter)
+
+                // Navigate safely after clearing
                 navController.navigate(Screen.Bible.route)
             }
         }
+
 
         composable(Screen.More.route) {
             Toast.makeText(context, "Settings Screen coming soon!", Toast.LENGTH_SHORT).show()

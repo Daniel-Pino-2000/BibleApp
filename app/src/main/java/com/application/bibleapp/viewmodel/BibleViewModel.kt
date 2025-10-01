@@ -105,6 +105,12 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
         }
     }
 
+    fun clearSearchResults() {
+        _searchResults.value = emptyList()
+        _searchQuery.value = ""  // optional, if you want to clear the search query too
+    }
+
+
 
 
 
