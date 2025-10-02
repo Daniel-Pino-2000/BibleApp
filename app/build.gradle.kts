@@ -48,6 +48,7 @@ dependencies {
 
     // Navigation
     implementation("androidx.navigation:navigation-compose:2.9.4")
+    implementation(libs.androidx.benchmark.traceprocessor.android)
 
     // Room
     val room_version = "2.7.1"

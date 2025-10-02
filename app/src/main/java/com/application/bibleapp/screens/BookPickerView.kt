@@ -37,15 +37,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import com.application.bibleapp.components.ChapterGrid
 import com.application.bibleapp.components.SearchBar
+import com.application.bibleapp.components.VerseGrid
 import com.application.bibleapp.data.model.BibleBook
+import com.application.bibleapp.data.model.Chapter
 
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookPickerView(
     bibleViewModel: BibleViewModel,
-    onBackClick: () -> Unit
+    onBackClick: () -> Unit,
+    onChapterClick: (Int, Int) -> Unit,
 ) {
 
     val selectedBook by (bibleViewModel.currentBook.collectAsState())
@@ -99,10 +103,11 @@ fun BookPickerView(
                     }))
 
                     if (expandedBookId.value == book.id) {
-                        ChapterGrid(book) { chapter ->
-                            bibleViewModel.loadChapter(book.id, chapter)
-                            bibleViewModel.setBook(book.id, chapter)
-                            onBackClick()
+                        ChapterGrid(book) { chapterNumber ->
+
+                            // Trigger the callback to navigate to VersePickerView
+                            onChapterClick(book.id, chapterNumber)
+
                         }
                     }
                 }
@@ -113,36 +118,3 @@ fun BookPickerView(
     }
 }
 
-@Composable
-fun ChapterGrid(book: BibleBook, onChapterClick: (Int) -> Unit) {
-
-    Column(modifier = Modifier.padding(8.dp)) {
-        val chaptersPerRow = 5
-        book.chapters.chunked(chaptersPerRow).forEach { row ->
-
-            Row {
-                row.forEach { chapter ->
-                    Surface(
-                        modifier = Modifier
-                            .padding(4.dp)
-                            .weight(1f)
-                            .aspectRatio(1f) // square
-                            .clickable { onChapterClick(chapter.number) },
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(chapter.number.toString())
-                        }
-                    }
-                }
-                // Fill empty space if row is not full
-                if (row.size < chaptersPerRow) {
-                    repeat(chaptersPerRow - row.size) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
-                }
-            }
-        }
-    }
-}

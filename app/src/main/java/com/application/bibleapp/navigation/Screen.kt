@@ -6,4 +6,5 @@ sealed class Screen(val route: String, val title: String) {
     object Search : Screen("search", "Search")
     object More : Screen("more", "More")
     object BookPicker: Screen("book_picker", "Select Book")
+    object VersePicker: Screen("verse_picker", "Select Verse")
 }

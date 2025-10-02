@@ -55,9 +55,25 @@ fun Navigation(
         }
 
         composable(Screen.BookPicker.route) {
-            BookPickerView(bibleViewModel) {
-                navController.popBackStack()
-            }
+            BookPickerView(
+                bibleViewModel,
+                onBackClick = {
+                    navController.navigate(Screen.VersePicker.route)
+                },
+                onChapterClick = { bookId, chapterNumber ->
+                    // 1. Update ViewModel with selected book & chapter
+                    bibleViewModel.setBook(bookId, chapterNumber)
+
+                    // 2. Navigate to VersePicker
+                    navController.navigate(Screen.VersePicker.route)
+                }
+            )
+        }
+
+        composable(Screen.VersePicker.route) {
+            // TODO VersePickerView(bibleViewModel) {
+
         }
     }
 }
+
