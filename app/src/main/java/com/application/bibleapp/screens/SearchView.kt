@@ -24,7 +24,7 @@ import androidx.compose.foundation.lazy.items
 @Composable
 fun SearchView(
     bibleViewModel: BibleViewModel,
-    padding: PaddingValues,
+    modifier: Modifier = Modifier,
     onVerseClicked: (bookId: Int, chapter: Int, verse: Int) -> Unit
 ) {
 
@@ -33,9 +33,8 @@ fun SearchView(
     val searchedVerses by bibleViewModel.searchResults.collectAsState()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .padding(top = padding.calculateTopPadding()) // optional: top bar
     ) {
         SearchBar(
             searchText = searchText,
@@ -49,7 +48,6 @@ fun SearchView(
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
-                .padding(bottom = padding.calculateBottomPadding()) // respect BottomBar
         ) {
             items(searchedVerses, key = { it.id }) { verse ->
                 Text(

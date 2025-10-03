@@ -11,6 +11,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.application.bibleapp.components.BibleText
 import com.application.bibleapp.components.BookPickerBar
 import com.application.bibleapp.data.repository.BibleRepository
@@ -19,19 +20,21 @@ import com.application.bibleapp.viewmodel.BibleViewModel
 @Composable
 fun BibleView(
     bibleViewModel: BibleViewModel,
-    padding: PaddingValues
+    modifier: Modifier = Modifier
 ) {
 
+    val currentVerse by bibleViewModel.currentVerse.collectAsState()
     val verses by bibleViewModel.verses.collectAsState()
 
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxSize()
-            .padding(padding)
     ) {
         BibleText(
             verses = verses,
-            modifier = Modifier.fillMaxSize()
+            scrollToIndex = currentVerse,
+            modifier = Modifier
+                .fillMaxSize() // BibleText takes full size of Column
         )
     }
 

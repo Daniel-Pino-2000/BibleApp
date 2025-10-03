@@ -36,11 +36,11 @@ fun Navigation(
         }
 
         composable(Screen.Bible.route) {
-            BibleView(bibleViewModel, padding)
+            BibleView(bibleViewModel, modifier = Modifier.padding(padding))
         }
 
         composable(Screen.Search.route) {
-            SearchView(bibleViewModel, padding) { bookId, chapter, verse ->
+            SearchView(bibleViewModel, modifier = Modifier.padding(padding)) { bookId, chapter, verse ->
                 // Clear search first to avoid rendering issues
                 bibleViewModel.clearSearchResults()
                 bibleViewModel.setBook(bookId, chapter)
