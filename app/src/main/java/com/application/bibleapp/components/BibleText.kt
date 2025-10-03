@@ -13,6 +13,7 @@ import com.application.bibleapp.data.model.VerseUI
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 
 @Composable
 fun BibleText(
@@ -20,20 +21,19 @@ fun BibleText(
     scrollToIndex: Int,
     modifier: Modifier = Modifier
 ) {
-    // Remember LazyListState to control scrolling
-    val listState = rememberLazyListState()
+    // Create a new LazyListState each time the verses list changes
+    val listState = remember(verses) { androidx.compose.foundation.lazy.LazyListState() }
 
+    // Scroll to the desired verse whenever verses or scroll index change
     LaunchedEffect(verses.size, scrollToIndex) {
-        val index = scrollToIndex - 1  // convert to 0-based
-        if (index in verses.indices) {
-            listState.scrollToItem(index)
-        }
+        val index = (scrollToIndex - 1).coerceIn(verses.indices)
+        listState.scrollToItem(index)
     }
 
     LazyColumn(
         modifier = modifier,
         state = listState,
-        contentPadding = PaddingValues(vertical = 5.dp, horizontal = 5.dp) // internal content spacing only
+        contentPadding = PaddingValues(vertical = 5.dp, horizontal = 5.dp)
     ) {
         items(verses) { verse ->
             Text(text = "${verse.verse} ${verse.text}")
