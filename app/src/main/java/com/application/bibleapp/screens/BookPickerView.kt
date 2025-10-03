@@ -48,8 +48,9 @@ import com.application.bibleapp.data.model.Chapter
 @Composable
 fun BookPickerView(
     bibleViewModel: BibleViewModel,
+    modifier: Modifier = Modifier,
     onBackClick: () -> Unit,
-    onChapterClick: (Int, Int) -> Unit,
+    onChapterClick: (Int, Int) -> Unit
 ) {
 
     val selectedBook by (bibleViewModel.currentBook.collectAsState())
@@ -57,64 +58,46 @@ fun BookPickerView(
 
     var searchText by rememberSaveable { mutableStateOf("") }
 
-    Surface(
-        modifier = Modifier.fillMaxSize().windowInsetsPadding(WindowInsets.safeDrawing),
-        color = MaterialTheme.colorScheme.background,
 
+    Column(
+        modifier = modifier.fillMaxSize()
     ) {
+        SearchBar(
+            searchText,
+            onTextChange = { newText ->
+                searchText = newText
+            },
+            onSearchClick = {
+                bibleViewModel.onSearchButtonClick()
+            },
+            placeholder = "Search Book"
+        )
 
-        Column(
+        val filteredBooks = BibleBooks.allBooks.filter {
+            it.name.contains(searchText, ignoreCase = true)
+        }
+
+        LazyColumn(
             modifier = Modifier.fillMaxSize()
         ) {
+            items(filteredBooks) { book ->
+                Text(book.name, Modifier.clickable(true, onClick = {
+                    expandedBookId.value =
+                        if (expandedBookId.value == book.id) null else book.id
+                }))
 
-            TopAppBar(
-                title = { Text("Select Book") },
-                navigationIcon = {
-                    IconButton(
-                        onClick = { onBackClick() }
-                    ) {
-                        Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                if (expandedBookId.value == book.id) {
+                    ChapterGrid(book) { chapterNumber ->
+
+                        // Trigger the callback to navigate to VersePickerView
+                        onChapterClick(book.id, chapterNumber)
+
                     }
                 }
-            )
-
-            SearchBar(
-                searchText,
-                onTextChange = { newText ->
-                    searchText = newText
-                },
-                onSearchClick = {
-                    bibleViewModel.onSearchButtonClick()
-                },
-                placeholder = "Search Book"
-            )
-
-            val filteredBooks = BibleBooks.allBooks.filter {
-                it.name.contains(searchText, ignoreCase = true)
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize()
-            ) {
-                items(filteredBooks) { book ->
-                    Text(book.name, Modifier.clickable(true, onClick = {
-                        expandedBookId.value =
-                            if (expandedBookId.value == book.id) null else book.id
-                    }))
-
-                    if (expandedBookId.value == book.id) {
-                        ChapterGrid(book) { chapterNumber ->
-
-                            // Trigger the callback to navigate to VersePickerView
-                            onChapterClick(book.id, chapterNumber)
-
-                        }
-                    }
-                }
-
             }
 
         }
+
     }
 }
 

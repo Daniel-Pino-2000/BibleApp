@@ -14,6 +14,7 @@ import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
 import com.application.bibleapp.screens.SearchView
+import com.application.bibleapp.screens.VersePickerView
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
@@ -57,8 +58,9 @@ fun Navigation(
         composable(Screen.BookPicker.route) {
             BookPickerView(
                 bibleViewModel,
+                modifier = Modifier.padding(padding),
                 onBackClick = {
-                    navController.navigate(Screen.VersePicker.route)
+                    navController.popBackStack()
                 },
                 onChapterClick = { bookId, chapterNumber ->
                     // 1. Update ViewModel with selected book & chapter
@@ -71,7 +73,16 @@ fun Navigation(
         }
 
         composable(Screen.VersePicker.route) {
-            // TODO VersePickerView(bibleViewModel) {
+            VersePickerView(
+                bibleViewModel,
+                modifier = Modifier.padding(padding),
+                onBackClick = {
+                    navController.popBackStack()
+                } ,
+                onVerseClicked = {
+                    navController.navigate(Screen.Bible.route)
+                }
+            )
 
         }
     }

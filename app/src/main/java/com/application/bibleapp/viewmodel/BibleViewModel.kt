@@ -44,19 +44,21 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
         viewModelScope.launch {
             val chapterData = repository.getChapter(bookId, chapterId)
             _verses.value = chapterData
+            _currentBook.value = bookId
+            _currentChapter.value = chapterId
+            _currentVerse.value = 1 // reset to first verse unless you want to preserve
         }
     }
 
     fun previousChapter() {
         if (_currentChapter.value > 1) {
-            _currentChapter.value -= 1
-            loadChapter(_currentBook.value, _currentChapter.value)
+            loadChapter(_currentBook.value, _currentChapter.value - 1)
         } else if (_currentBook.value > 1) {
-            _currentBook.value -= 1
-            val previousBook = BibleBooks.allBooks.first { it.id == _currentBook.value }
-            _currentChapter.value = previousBook.chapters.size
+            val previousBook = BibleBooks.allBooks.first { it.id == _currentBook.value - 1 }
+            loadChapter(previousBook.id, previousBook.chapters.size)
         }
     }
+
 
     fun nextChapter() {
         val currentBook = BibleBooks.allBooks.first { it.id == _currentBook.value }
@@ -86,9 +88,8 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
         loadChapter(_currentBook.value, chapterId)
     }
 
-    fun setVerse(chapterId: Int) {
-        _currentVerse.value = chapterId
-        loadChapter(_currentVerse.value, chapterId)
+    fun setVerse(verseNumber: Int) {
+        _currentVerse.value = verseNumber
     }
 
     fun onSearchQueryChange(newQuery: String) {

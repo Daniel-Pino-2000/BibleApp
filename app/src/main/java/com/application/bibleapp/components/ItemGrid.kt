@@ -86,9 +86,11 @@ fun ChapterGrid(book: BibleBook, onChapterClick: (Int) -> Unit) {
 }
 
 @Composable
-fun VerseGrid(chapter: Chapter, onVerseClick: (Int) -> Unit) {
+fun VerseGrid(bookId: Int, chapterId: Int, onVerseClick: (Int) -> Unit) {
+    val numberOfVerses = BibleBooks.getVerseCount(bookId, chapterId)
+
     // Generate a list of verse numbers from 1 to the total number of verses in the chapter
-    val verseNumbers = (1..chapter.verses).toList()
+    val verseNumbers = (1..numberOfVerses).toList()
 
     ItemGrid(items = verseNumbers, itemsPerRow = 8, onItemClick = onVerseClick)
 }

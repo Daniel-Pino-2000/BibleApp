@@ -13,6 +13,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.Divider
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -46,9 +50,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.application.bibleapp.components.BibleTopBar
 import com.application.bibleapp.components.BookPickerBar
+import com.application.bibleapp.components.BookPickerTopBar
+import com.application.bibleapp.components.HomeTopBar
 import com.application.bibleapp.components.MainBottomBar
+import com.application.bibleapp.components.SearchTopBar
+import com.application.bibleapp.components.VersePickerTopBar
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
 import com.application.bibleapp.viewmodel.BibleViewModel
@@ -80,57 +90,44 @@ class MainActivity : ComponentActivity() {
                     null
                 }
 
-                // Check if we should show the bottom bar
-                val showBottomBar = currentRoute !in listOf(Screen.BookPicker.route)
 
-                if (showBottomBar) {
-                    // MAIN SCAFFOLD (for normal screens)
-                    Scaffold(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .then(
-                                if (scrollBehavior != null) {
-                                    Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
-                                } else {
-                                    Modifier
-                                }
-                            ),
-                        topBar = {
-                            when (currentRoute) {
-                                Screen.Bible.route -> TopBar(
-                                    title = "Bible",
-                                    actions = {
-                                        Button(onClick = { /* open version picker */ }) {
-                                            Text("Version")
-                                        }
-                                    },
-                                    scrollBehavior = scrollBehavior
-                                )
-                                Screen.Home.route -> TopBar("Daily Verse")
-                                Screen.Search.route -> TopBar("Search")
-                                Screen.More.route -> TopBar("More")
-                                else -> TopBar("BibleApp")
+                Scaffold(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .then(
+                            if (scrollBehavior != null) {
+                                Modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+                            } else {
+                                Modifier
                             }
-                        },
-                        bottomBar = {
+                        ),
+                    topBar = {
+                        when (currentRoute) {
+                            Screen.Bible.route -> BibleTopBar(scrollBehavior)
+                            Screen.Home.route -> HomeTopBar()
+                            Screen.Search.route -> SearchTopBar { /* search click */ }
+                            Screen.BookPicker.route -> BookPickerTopBar { navController.popBackStack() }
+                            Screen.VersePicker.route -> VersePickerTopBar { navController.popBackStack() }
+                            else -> TopBar() // fallback generic
+                        }
+                    },
+                    bottomBar = {
+                        if (currentRoute !in listOf(
+                                Screen.BookPicker.route,
+                                Screen.VersePicker.route
+                            )
+                        ) {
                             MainBottomBar(
                                 currentRoute,
                                 bibleViewModel,
                                 hideBar = false,
-                                onItemSelected = { route ->
-                                    navController.navigate(route)
-                                },
-                                onBookPickerClicked = {
-                                    navController.navigate(Screen.BookPicker.route)
-                                }
+                                onItemSelected = { route -> navController.navigate(route) },
+                                onBookPickerClicked = { navController.navigate(Screen.BookPicker.route) }
                             )
                         }
-                    ) { paddingValues ->
-                        Navigation(navController, paddingValues, bibleViewModel)
                     }
-                } else {
-                    // SEPARATE SCREEN (BookPickerScreen)
-                    Navigation(navController, PaddingValues(0.dp), bibleViewModel)
+                ) { paddingValues ->
+                    Navigation(navController, paddingValues, bibleViewModel)
                 }
             }
         }
