@@ -43,7 +43,7 @@ fun Navigation(
             SearchView(bibleViewModel, modifier = Modifier.padding(padding)) { bookId, chapter, verse ->
                 // Clear search first to avoid rendering issues
                 bibleViewModel.clearSearchResults()
-                bibleViewModel.setBook(bookId, chapter)
+                bibleViewModel.setBook(bookId, chapter, verse)
 
                 // Navigate safely after clearing
                 navController.navigate(Screen.Bible.route)

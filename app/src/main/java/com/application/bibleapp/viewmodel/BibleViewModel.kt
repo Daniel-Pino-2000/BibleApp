@@ -40,47 +40,38 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
     val searchResults: StateFlow<List<VerseUI>> = _searchResults.asStateFlow()
 
 
-    fun loadChapter(bookId: Int, chapterId: Int) {
+    fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
         viewModelScope.launch {
             val chapterData = repository.getChapter(bookId, chapterId)
             _verses.value = chapterData
             _currentBook.value = bookId
             _currentChapter.value = chapterId
-            _currentVerse.value = 1 // reset to first verse unless you want to preserve
+            _currentVerse.value = verseId.coerceIn(1, chapterData.size) // safe bounds
         }
     }
 
     fun previousChapter() {
         if (_currentChapter.value > 1) {
-            loadChapter(_currentBook.value, _currentChapter.value - 1)
+            loadChapter(_currentBook.value, _currentChapter.value - 1) // defaults to verse 1
         } else if (_currentBook.value > 1) {
             val previousBook = BibleBooks.allBooks.first { it.id == _currentBook.value - 1 }
-            loadChapter(previousBook.id, previousBook.chapters.size)
+            loadChapter(previousBook.id, previousBook.chapters.size) // defaults to verse 1
         }
     }
-
 
     fun nextChapter() {
         val currentBook = BibleBooks.allBooks.first { it.id == _currentBook.value }
-
         if (_currentChapter.value < currentBook.chapters.size) {
-            // Go to next chapter in the same book
-            _currentChapter.value += 1
+            loadChapter(_currentBook.value, _currentChapter.value + 1) // defaults to verse 1
         } else if (_currentBook.value < BibleBooks.allBooks.size) {
-            // Move to the first chapter of the next book
-            _currentBook.value += 1
-            _currentChapter.value = 1
-        } else {
-            // Already at the last chapter of the last book
-            return
+            loadChapter(_currentBook.value + 1, 1) // defaults to verse 1
         }
-        loadChapter(_currentBook.value, _currentChapter.value)
     }
 
-    fun setBook(bookId: Int, chapter: Int = 1) {
+    fun setBook(bookId: Int, chapter: Int = 1, verse: Int = 1) {
         _currentBook.value = bookId
         _currentChapter.value = chapter
-        loadChapter(bookId, chapter)
+        loadChapter(bookId, chapter, verse)
     }
 
     fun setChapter(chapterId: Int) {
