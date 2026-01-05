@@ -67,7 +67,7 @@ object BibleDatabaseManager {
 
         // Make sure table and column names match your DB
         val cursor = db.rawQuery(
-            "SELECT wordId, word, bookNum, chNum, verseNum FROM words WHERE bookNum = ? AND chNum = ? ORDER BY verseNum",
+            "SELECT id, text, book_id, chapter, verse FROM KJV_verses WHERE book_id = ? AND chapter = ? ORDER BY verse",
             arrayOf(bookNum.toString(), chNum.toString())
         )
 
@@ -93,7 +93,7 @@ object BibleDatabaseManager {
             "ó" to "o", "ú" to "u", "ü" to "u", "ñ" to "n"
         )
 
-        var sql = "GROUP_CONCAT(word, ' ')"
+        var sql = "GROUP_CONCAT(text, ' ')"
         replacements.forEach { (from, to) ->
             sql = "REPLACE($sql,'$from','$to')"
         }
@@ -119,11 +119,11 @@ object BibleDatabaseManager {
 
             val cursor = db.rawQuery(
                 """
-            SELECT bookNum, chNum, verseNum, GROUP_CONCAT(word, ' ') as fullText
-            FROM words
-            GROUP BY bookNum, chNum, verseNum
+            SELECT book_id, chapter, verse, GROUP_CONCAT(text, ' ') as fullText
+            FROM KJV_verses
+            GROUP BY book_id, chapter, verse
             HAVING $conditions
-            ORDER BY bookNum, chNum, verseNum
+            ORDER BY book_id, chapter, verse
             LIMIT 500
             """,
                 args
