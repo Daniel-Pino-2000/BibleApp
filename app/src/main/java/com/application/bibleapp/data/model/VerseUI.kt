@@ -1,7 +1,7 @@
 package com.application.bibleapp.data.model
 
 data class VerseUI(
-    val id: Int,
+    val id: Int?,
     val text: String,
     val bookId: Int?,
     val chapter: Int?,

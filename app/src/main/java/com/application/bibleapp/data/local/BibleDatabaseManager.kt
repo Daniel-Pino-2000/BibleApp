@@ -3,7 +3,6 @@ package com.application.bibleapp.data.local
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
-import androidx.compose.runtime.mutableStateOf
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.utils.TextUtils.normalizeForSearch

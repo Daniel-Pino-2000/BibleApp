@@ -43,6 +43,13 @@ android {
 }
 
 dependencies {
+    // Ktor
+    implementation("io.ktor:ktor-client-core:2.3.8")
+    implementation("io.ktor:ktor-client-cio:2.3.8")
+    implementation("io.ktor:ktor-client-content-negotiation:2.3.8")
+    implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.8")
+
+
     // Icons
     implementation("androidx.compose.material:material-icons-extended:1.7.8") // Replace 1.x.x with the latest version
 

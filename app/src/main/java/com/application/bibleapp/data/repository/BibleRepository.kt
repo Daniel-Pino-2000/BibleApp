@@ -1,15 +1,18 @@
 package com.application.bibleapp.data.repository
 
 import android.content.Context
-import androidx.room.Query
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 
-class BibleRepository(private val context: Context) {
+class BibleRepository(
+    private val context: Context,
+    private val remote: RemoteBibleDataSource
+) {
 
     // Cache for recently accessed chapters: key = bookId to chapter
     private val chapterCache = mutableMapOf<Pair<Int, Int>, List<VerseUI>>()
@@ -35,16 +38,3 @@ class BibleRepository(private val context: Context) {
 
 }
 
-/**
- * Map BibleVerse to VerseUI for UI display
- */
-fun BibleVerse.toUI(): VerseUI = VerseUI(
-    id = id,
-    text = text,
-    bookId = bookId,
-    chapter = chapter,
-    verse = verse,
-    isUserVerse = false,
-    isHighlighted = false,
-    highlightColor = 0x00000000
-)
