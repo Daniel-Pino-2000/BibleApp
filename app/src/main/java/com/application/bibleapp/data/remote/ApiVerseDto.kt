@@ -1,6 +1,7 @@
 package com.application.bibleapp.data.remote
 
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.utils.IdUtils.generateVerseId
 import kotlinx.serialization.Serializable
 
@@ -10,7 +11,7 @@ data class ApiVerseDto(
     val text: String
 )
 
-// Mapper extension
+// Mapper extensions
 fun ApiVerseDto.toBibleVerse(
     bookId: Int,
     chapter: Int
@@ -21,4 +22,13 @@ fun ApiVerseDto.toBibleVerse(
     verse = verse.toIntOrNull() ?: 0,
     text = text
 )
+
+fun ApiVerseDto.toUIVerse(bookId: Int, chapter: Int): VerseUI = VerseUI(
+    id = null,
+    bookId = bookId,
+    chapter = chapter,
+    verse = verse.toIntOrNull() ?: 0,
+    text = text
+)
+
 

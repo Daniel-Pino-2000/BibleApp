@@ -3,8 +3,6 @@ package com.application.bibleapp.data.remote
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
-import com.application.bibleapp.utils.VerseUtils.toVerseUI
-import com.application.bibleapp.utils.VerseUtils.toVerseUIList
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 
@@ -38,25 +36,37 @@ class RemoteBibleDataSource(
     ): List<VerseUI>? {
         return try {
             val url = "$baseUrl/bibles/$version/books/$book/chapters/$chapter.json"
+
+            // Get raw JSON from API
             val apiChapter: ApiChapterDto = client.get(url).body()
 
-            // Generate bookIdMap from your BibleBooks object
+            // Create bookIdMap once
             val bookIdMap = BibleBooks.allBooks.associate { it.name to it.id }
+            val numericBookId = bookIdMap[book] ?: 0
 
-            apiChapter.data.map { it.toVerseUI(bookIdMap) }
+            // Map each ApiChapterVerseDto into your existing ApiVerseDto
+            apiChapter.data.map { chapterVerse ->
+                // Convert to your ApiVerseDto
+                val apiVerseDto = ApiVerseDto(
+                    verse = chapterVerse.verse,
+                    text = chapterVerse.text
+                )
+                // Use your existing mapper
+                apiVerseDto.toUIVerse(numericBookId, chapter)
+            }
         } catch (e: Exception) {
             null
         }
     }
 
-
+    // Fetch all available Bible versions from the API
     suspend fun getAvailableVersions(): List<BibleVersionDto> {
         return try {
-            client.get(
-                "$baseUrl/bibles/bibles.json"
-            ).body()
+            client.get("$baseUrl/bibles/bibles.json").body()
         } catch (e: Exception) {
+            e.printStackTrace()
             emptyList()
         }
     }
+
 }

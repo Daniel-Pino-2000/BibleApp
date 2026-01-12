@@ -10,3 +10,18 @@ data class BibleVerse(
     val verse: Int
 )
 
+/**
+ * Map BibleVerse to VerseUI for UI display
+ */
+// VerseExtensions.kt
+fun BibleVerse.toUI(): VerseUI = VerseUI(
+    id = id,
+    text = text,
+    bookId = bookId,
+    chapter = chapter,
+    verse = verse,
+    isUserVerse = false,
+    isHighlighted = false,
+    highlightColor = 0x00000000
+)
+

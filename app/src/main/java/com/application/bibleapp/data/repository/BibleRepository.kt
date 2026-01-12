@@ -4,6 +4,7 @@ import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
