@@ -2,11 +2,11 @@ package com.application.bibleapp.data.repository
 
 import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
+import com.application.bibleapp.data.model.BibleBooks.getBookById
 import com.application.bibleapp.data.model.BibleSourceType
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
-import com.application.bibleapp.data.model.getBookById
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleVersionDto
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
@@ -42,8 +42,9 @@ class BibleRepository(
             }
 
             BibleSourceType.REMOTE -> {
+                val versionId = selected.id ?: return emptyList() // safety check
                 remote.getChapter(
-                    version = selected.id,
+                    version = versionId,
                     book = getBookById(bookId)?.name ?: "genesis",
                     chapter = chapter
                 ) ?: emptyList()

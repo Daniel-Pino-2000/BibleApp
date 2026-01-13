@@ -59,6 +59,7 @@ import com.application.bibleapp.components.HomeTopBar
 import com.application.bibleapp.components.MainBottomBar
 import com.application.bibleapp.components.SearchTopBar
 import com.application.bibleapp.components.VersePickerTopBar
+import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
 import com.application.bibleapp.viewmodel.BibleViewModel
@@ -73,7 +74,11 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val bibleViewModel: BibleViewModel = viewModel(
-                factory = BibleViewModelFactory(BibleRepository(this))
+                factory = BibleViewModelFactory(BibleRepository(
+                    this,
+                    remote = RemoteBibleDataSource(),
+                    currentVersionProvider = TODO()
+                ))
             )
             val navController = rememberNavController()
 
@@ -103,7 +108,10 @@ class MainActivity : ComponentActivity() {
                         ),
                     topBar = {
                         when (currentRoute) {
-                            Screen.Bible.route -> BibleTopBar(scrollBehavior)
+                            Screen.Bible.route -> BibleTopBar(
+                                scrollBehavior,
+                                onVersionClick = {navController.navigate(Screen.VersionPicker.route)},
+                            )
                             Screen.Home.route -> HomeTopBar()
                             Screen.Search.route -> SearchTopBar { /* search click */ }
                             Screen.BookPicker.route -> BookPickerTopBar { navController.popBackStack() }

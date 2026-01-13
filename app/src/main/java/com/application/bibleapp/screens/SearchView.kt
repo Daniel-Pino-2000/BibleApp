@@ -49,7 +49,7 @@ fun SearchView(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            items(searchedVerses, key = { it.id }) { verse ->
+            items(searchedVerses, key = { it.id ?: 0 }) { verse ->
                 Text(
                     text = "${verse.verse} ${verse.text}",
                     modifier = Modifier.clickable {

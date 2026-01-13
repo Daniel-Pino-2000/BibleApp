@@ -13,37 +13,7 @@ data class Chapter(
     val verses: Int
 )
 
-/**
- * Get a book by its ID
- */
-fun getBookById(id: Int): BibleBook? = allBooks.find { it.id == id }
 
-/**
- * Get a book by its name (case-insensitive)
- */
-fun getBookByName(name: String): BibleBook? =
-    allBooks.find { it.name.equals(name, ignoreCase = true) }
-
-/**
- * Get total number of chapters in a book
- */
-fun getChapterCount(bookId: Int): Int =
-    getBookById(bookId)?.chapters?.size ?: 0
-
-/**
- * Get number of verses in a specific chapter
- */
-fun getVerseCount(bookId: Int, chapterNumber: Int): Int =
-    getBookById(bookId)?.chapters?.find { it.number == chapterNumber }?.verses ?: 0
-
-/**
- * Validate if a book/chapter/verse reference exists
- */
-fun isValidReference(bookId: Int, chapterNumber: Int, verseNumber: Int): Boolean {
-    val book = getBookById(bookId) ?: return false
-    val chapter = book.chapters.find { it.number == chapterNumber } ?: return false
-    return verseNumber in 1..chapter.verses
-}
 
 /**
  * Get Old Testament books (1-39)
@@ -56,6 +26,39 @@ val oldTestamentBooks = allBooks.filter { it.id in 1..39 }
 val newTestamentBooks = allBooks.filter { it.id in 40..66 }
 
 object BibleBooks {
+
+    /**
+     * Get a book by its ID
+     */
+    fun getBookById(id: Int): BibleBook? = allBooks.find { it.id == id }
+
+    /**
+     * Get a book by its name (case-insensitive)
+     */
+    fun getBookByName(name: String): BibleBook? =
+        allBooks.find { it.name.equals(name, ignoreCase = true) }
+
+    /**
+     * Get total number of chapters in a book
+     */
+    fun getChapterCount(bookId: Int): Int =
+        getBookById(bookId)?.chapters?.size ?: 0
+
+    /**
+     * Get number of verses in a specific chapter
+     */
+    fun getVerseCount(bookId: Int, chapterNumber: Int): Int =
+        getBookById(bookId)?.chapters?.find { it.number == chapterNumber }?.verses ?: 0
+
+    /**
+     * Validate if a book/chapter/verse reference exists
+     */
+    fun isValidReference(bookId: Int, chapterNumber: Int, verseNumber: Int): Boolean {
+        val book = getBookById(bookId) ?: return false
+        val chapter = book.chapters.find { it.number == chapterNumber } ?: return false
+        return verseNumber in 1..chapter.verses
+    }
+
     val allBooks = listOf(
         // OLD TESTAMENT
         BibleBook(1, "Genesis", listOf(

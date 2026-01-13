@@ -1,14 +1,13 @@
 package com.application.bibleapp.viewmodel
 
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import com.application.bibleapp.data.repository.BibleRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.BibleSourceType
+import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
-import com.application.bibleapp.utils.TextUtils.normalizeForSearch
+import com.application.bibleapp.data.remote.BibleVersionDto
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -38,6 +37,16 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
 
     private val _searchResults = MutableStateFlow<List<VerseUI>>(emptyList())
     val searchResults: StateFlow<List<VerseUI>> = _searchResults.asStateFlow()
+
+    private val _availableVersions = MutableStateFlow<List<BibleVersionDto>>(emptyList())
+    val availableVersions: StateFlow<List<BibleVersionDto>> = _availableVersions.asStateFlow()
+
+    private val _selectedVersion = MutableStateFlow<SelectedBibleVersion>(
+        SelectedBibleVersion(null, BibleSourceType.LOCAL)
+    )
+    val selectedVersion: StateFlow<SelectedBibleVersion> = _selectedVersion.asStateFlow()
+
+
 
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
@@ -102,8 +111,22 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
         _searchQuery.value = ""  // optional, if you want to clear the search query too
     }
 
+    fun loadAvailableVersions() {
+        viewModelScope.launch {
+            val versions = repository.getAllVersions()
+            _availableVersions.value = versions
+        }
+    }
 
+    fun setSelectedVersion(versionDto: String) {
+        _selectedVersion.value = SelectedBibleVersion(versionDto, BibleSourceType.REMOTE)
+        loadChapter(currentBook.value, currentChapter.value)
+    }
 
+    fun useLocalBible() {
+        _selectedVersion.value = SelectedBibleVersion(null, BibleSourceType.LOCAL)
+        loadChapter(currentBook.value, currentChapter.value)
+    }
 
 
 }

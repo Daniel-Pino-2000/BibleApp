@@ -15,6 +15,7 @@ import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
 import com.application.bibleapp.screens.SearchView
 import com.application.bibleapp.screens.VersePickerView
+import com.application.bibleapp.screens.VersionPickerView
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
@@ -24,7 +25,6 @@ fun Navigation(
     bibleViewModel: BibleViewModel
 ) {
     val context = LocalContext.current
-    val repository = BibleRepository(context)
 
     NavHost(
         navController = navController,
@@ -84,6 +84,19 @@ fun Navigation(
                 }
             )
 
+        }
+
+        composable(Screen.VersionPicker.route) {
+            VersionPickerView(
+                bibleViewModel,
+                onBackClick = {
+                    navController.popBackStack()
+                },
+                onVersionClicked = {
+                    navController.navigate(Screen.Bible.route)
+                }
+
+            )
         }
     }
 }

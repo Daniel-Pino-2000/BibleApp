@@ -7,4 +7,5 @@ sealed class Screen(val route: String, val title: String) {
     object More : Screen("more", "More")
     object BookPicker: Screen("book_picker", "Select Book")
     object VersePicker: Screen("verse_picker", "Select Verse")
+    object VersionPicker: Screen("version_picker", "Select Version")
 }
