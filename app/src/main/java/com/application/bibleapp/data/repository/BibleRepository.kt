@@ -2,9 +2,13 @@ package com.application.bibleapp.data.repository
 
 import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
+import com.application.bibleapp.data.model.BibleSourceType
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.getBookById
 import com.application.bibleapp.data.model.toUI
+import com.application.bibleapp.data.remote.BibleVersionDto
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -12,7 +16,8 @@ import kotlinx.coroutines.withContext
 
 class BibleRepository(
     private val context: Context,
-    private val remote: RemoteBibleDataSource
+    private val remote: RemoteBibleDataSource,
+    private val currentVersionProvider: () -> SelectedBibleVersion
 ) {
 
     // Cache for recently accessed chapters: key = bookId to chapter
@@ -23,11 +28,25 @@ class BibleRepository(
      * Cached if already loaded.
      */
     suspend fun getChapter(bookId: Int, chapter: Int): List<VerseUI> {
-        val key = bookId to chapter
-        return chapterCache.getOrPut(key) {
-            withContext(Dispatchers.IO) {   // <- runs database query on a background thread
-                BibleDatabaseManager.getVersesByChapter(context, bookId, chapter)
-                    .map { it.toUI() }
+
+        val selected = currentVersionProvider()
+
+        return when (selected.source) {
+
+            BibleSourceType.LOCAL -> {
+                withContext(Dispatchers.IO) {
+                    BibleDatabaseManager
+                        .getVersesByChapter(context, bookId, chapter)
+                        .map { it.toUI() }
+                }
+            }
+
+            BibleSourceType.REMOTE -> {
+                remote.getChapter(
+                    version = selected.id,
+                    book = getBookById(bookId)?.name ?: "genesis",
+                    chapter = chapter
+                ) ?: emptyList()
             }
         }
     }
@@ -35,6 +54,10 @@ class BibleRepository(
     suspend fun searchVerses(query: String): List<VerseUI> = withContext(Dispatchers.IO) {
         if (query.isBlank()) emptyList()
         else BibleDatabaseManager.searchVerses(query)
+    }
+
+    suspend fun getAllVersions(): List<BibleVersionDto> {
+        return remote.getAvailableVersions()
     }
 
 }
