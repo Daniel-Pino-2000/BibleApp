@@ -59,6 +59,7 @@ import com.application.bibleapp.components.HomeTopBar
 import com.application.bibleapp.components.MainBottomBar
 import com.application.bibleapp.components.SearchTopBar
 import com.application.bibleapp.components.VersePickerTopBar
+import com.application.bibleapp.components.VersionPickerTopBar
 import com.application.bibleapp.data.model.BibleSourceType
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
@@ -118,6 +119,7 @@ class MainActivity : ComponentActivity() {
                             Screen.Search.route -> SearchTopBar { /* search click */ }
                             Screen.BookPicker.route -> BookPickerTopBar { navController.popBackStack() }
                             Screen.VersePicker.route -> VersePickerTopBar { navController.popBackStack() }
+                            Screen.VersionPicker.route -> VersionPickerTopBar { navController.popBackStack() }
                             else -> TopBar() // fallback generic
                         }
                     },

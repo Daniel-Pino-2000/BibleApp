@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BibleTopBar(scrollBehavior: TopAppBarScrollBehavior?, onVersionClick: () -> Unit = {}) {
+fun BibleTopBar(scrollBehavior: TopAppBarScrollBehavior?, onVersionClick: () -> Unit) {
     TopBar(
         title = { Text("Bible", fontSize = 20.sp) },
         actions = {
@@ -34,6 +34,7 @@ fun HomeTopBar() {
         title = { Text("Daily Verse", fontSize = 24.sp) }
     )
 }
+
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -66,6 +67,19 @@ fun BookPickerTopBar(onBackClick: () -> Unit) {
 fun VersePickerTopBar(onBackClick: () -> Unit) {
     TopBar(
         title = { Text("Select Verse") },
+        navigationIcon = {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun VersionPickerTopBar(onBackClick: () -> Unit) {
+    TopBar(
+        title = { Text("Select Version") },
         navigationIcon = {
             IconButton(onClick = onBackClick) {
                 Icon(Icons.Default.ArrowBack, contentDescription = "Back")

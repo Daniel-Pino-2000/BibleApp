@@ -25,12 +25,16 @@ fun VersionPickerView(
     Column(
         modifier = modifier.fillMaxSize()
     ) {
+
+        Text("Versions count: ${versions.size}")
+
         LazyColumn {
             items(versions) { version ->
                 Text(
                     text = "${version.version} - ${version.language.name}",
                     modifier = Modifier.clickable {
                         bibleViewModel.setSelectedVersion(version.id)
+                        onVersionClicked()
                     }
                 )
             }

@@ -2,6 +2,7 @@ package com.application.bibleapp.navigation
 
 import android.widget.Toast
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -89,6 +90,7 @@ fun Navigation(
         composable(Screen.VersionPicker.route) {
             VersionPickerView(
                 bibleViewModel,
+                modifier = Modifier.fillMaxSize().padding(padding),
                 onBackClick = {
                     navController.popBackStack()
                 },

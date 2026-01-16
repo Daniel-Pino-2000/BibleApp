@@ -30,6 +30,9 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
     init {
         // Load chapter 1 by default
         loadChapter(_currentBook.value, _currentChapter.value)
+
+        // Load available versions
+        loadAvailableVersions()
     }
 
     private val _searchQuery = MutableStateFlow("")
@@ -113,10 +116,17 @@ class BibleViewModel(private val repository: BibleRepository): ViewModel() {
 
     fun loadAvailableVersions() {
         viewModelScope.launch {
-            val versions = repository.getAllVersions()
-            _availableVersions.value = versions
+            try {
+                println("Loading versions from API...")
+                val versions = repository.getAllVersions()
+                println("Fetched ${versions.size} versions")
+                _availableVersions.value = versions
+            } catch (e: Exception) {
+                println("Failed to load versions: $e")
+            }
         }
     }
+
 
     fun setSelectedVersion(versionDto: String) {
         _selectedVersion.value = SelectedBibleVersion(versionDto, BibleSourceType.REMOTE)
