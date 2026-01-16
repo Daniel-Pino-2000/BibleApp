@@ -59,6 +59,8 @@ import com.application.bibleapp.components.HomeTopBar
 import com.application.bibleapp.components.MainBottomBar
 import com.application.bibleapp.components.SearchTopBar
 import com.application.bibleapp.components.VersePickerTopBar
+import com.application.bibleapp.data.model.BibleSourceType
+import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
@@ -77,7 +79,7 @@ class MainActivity : ComponentActivity() {
                 factory = BibleViewModelFactory(BibleRepository(
                     this,
                     remote = RemoteBibleDataSource(),
-                    currentVersionProvider = TODO()
+                    currentVersionProvider = {SelectedBibleVersion(null, BibleSourceType.LOCAL)}
                 ))
             )
             val navController = rememberNavController()
