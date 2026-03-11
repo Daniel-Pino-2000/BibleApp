@@ -31,6 +31,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.navigation.NavHostController
@@ -76,13 +77,24 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
+
+            // Create a mutable holder for the version
+            var selectedVersionHolder = SelectedBibleVersion(null, BibleSourceType.LOCAL)
+
             val bibleViewModel: BibleViewModel = viewModel(
-                factory = BibleViewModelFactory(BibleRepository(
-                    this,
-                    remote = RemoteBibleDataSource(),
-                    currentVersionProvider = {SelectedBibleVersion(null, BibleSourceType.LOCAL)}
-                ))
+                factory = BibleViewModelFactory(
+                    context = this
+                )
             )
+
+
+            // Keep the holder in sync with the ViewModel
+            LaunchedEffect(bibleViewModel) {
+                bibleViewModel.selectedVersion.collect { version ->
+                    selectedVersionHolder = version
+                }
+            }
+
             val navController = rememberNavController()
 
             BibleAppTheme {

@@ -16,8 +16,7 @@ import kotlinx.coroutines.withContext
 
 class BibleRepository(
     private val context: Context,
-    private val remote: RemoteBibleDataSource,
-    private val currentVersionProvider: () -> SelectedBibleVersion
+    private val remote: RemoteBibleDataSource
 ) {
 
     // Cache for recently accessed chapters: key = bookId to chapter
@@ -27,12 +26,9 @@ class BibleRepository(
      * Get a chapter as VerseUI list.
      * Cached if already loaded.
      */
-    suspend fun getChapter(bookId: Int, chapter: Int): List<VerseUI> {
-
-        val selected = currentVersionProvider()
-
-        return when (selected.source) {
-
+    // ✅ FIX: accept selectedVersion as a direct parameter instead of via lambda
+    suspend fun getChapter(bookId: Int, chapter: Int, selectedVersion: SelectedBibleVersion): List<VerseUI> {
+        return when (selectedVersion.source) {
             BibleSourceType.LOCAL -> {
                 withContext(Dispatchers.IO) {
                     BibleDatabaseManager
@@ -40,9 +36,8 @@ class BibleRepository(
                         .map { it.toUI() }
                 }
             }
-
             BibleSourceType.REMOTE -> {
-                val versionId = selected.id ?: return emptyList() // safety check
+                val versionId = selectedVersion.id ?: return emptyList()
                 remote.getChapter(
                     version = versionId,
                     book = getBookById(bookId)?.name ?: "genesis",
