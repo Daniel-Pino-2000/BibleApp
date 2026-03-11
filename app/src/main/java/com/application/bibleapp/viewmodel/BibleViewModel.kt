@@ -1,13 +1,13 @@
 package com.application.bibleapp.viewmodel
 
-import com.application.bibleapp.data.repository.BibleRepository
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
-import com.application.bibleapp.data.model.BibleSourceType
+import com.application.bibleapp.data.model.DEFAULT_VERSION
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.remote.BibleVersionDto
+import com.application.bibleapp.data.repository.BibleRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -42,10 +42,18 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     private val _versionsError = MutableStateFlow<String?>(null)
     val versionsError: StateFlow<String?> = _versionsError.asStateFlow()
 
-    private val _selectedVersion = MutableStateFlow<SelectedBibleVersion>(
-        SelectedBibleVersion(null, BibleSourceType.LOCAL)
-    )
+    private val _selectedVersion = MutableStateFlow(DEFAULT_VERSION)
     val selectedVersion: StateFlow<SelectedBibleVersion> = _selectedVersion.asStateFlow()
+
+    // Download state
+    private val _downloadingVersionId = MutableStateFlow<String?>(null)
+    val downloadingVersionId: StateFlow<String?> = _downloadingVersionId.asStateFlow()
+
+    private val _downloadProgress = MutableStateFlow(0f)
+    val downloadProgress: StateFlow<Float> = _downloadProgress.asStateFlow()
+
+    private val _downloadError = MutableStateFlow<String?>(null)
+    val downloadError: StateFlow<String?> = _downloadError.asStateFlow()
 
     init {
         loadChapter(_currentBook.value, _currentChapter.value)
@@ -54,12 +62,10 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
         viewModelScope.launch {
-            // ✅ FIX: pass the current selected version directly at call time,
-            // so the repository always gets the live value, not a stale snapshot
             val chapterData = repository.getChapter(
                 bookId = bookId,
                 chapter = chapterId,
-                selectedVersion = _selectedVersion.value  // ✅ always fresh
+                versionId = _selectedVersion.value.id
             )
             _verses.value = chapterData
             _currentBook.value = bookId
@@ -109,7 +115,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         val query = _searchQuery.value
         if (query.isNotBlank()) {
             viewModelScope.launch {
-                _searchResults.value = repository.searchVerses(query)
+                _searchResults.value = repository.searchVerses(query, _selectedVersion.value.id)
             }
         }
     }
@@ -124,15 +130,8 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             _isLoadingVersions.value = true
             _versionsError.value = null
             try {
-                println("Loading versions from API...")
-                val versions = repository.getAllVersions()
-                println("Fetched ${versions.size} versions")
-                _availableVersions.value = versions
-                if (versions.isEmpty()) {
-                    println("WARNING: versions list is empty — check network or API response shape")
-                }
+                _availableVersions.value = repository.getAllVersions()
             } catch (e: Exception) {
-                println("Failed to load versions: $e")
                 _versionsError.value = e.message
             } finally {
                 _isLoadingVersions.value = false
@@ -140,13 +139,51 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         }
     }
 
-    fun setSelectedVersion(versionId: String) {
-        _selectedVersion.value = SelectedBibleVersion(versionId, BibleSourceType.REMOTE)
-        loadChapter(currentBook.value, currentChapter.value)  // reloads with new version
+    /**
+     * If already downloaded, switches immediately.
+     * If not, downloads first then switches.
+     */
+    fun selectVersion(versionId: String, versionName: String) {
+        viewModelScope.launch {
+            if (repository.isVersionDownloaded(versionId)) {
+                switchToVersion(versionId)
+                return@launch
+            }
+            downloadAndSwitch(versionId, versionName)
+        }
     }
 
     fun useLocalBible() {
-        _selectedVersion.value = SelectedBibleVersion(null, BibleSourceType.LOCAL)
-        loadChapter(currentBook.value, currentChapter.value)  // reloads with local
+        _selectedVersion.value = DEFAULT_VERSION
+        loadChapter(_currentBook.value, _currentChapter.value)
+    }
+
+    private fun switchToVersion(versionId: String) {
+        _selectedVersion.value = SelectedBibleVersion(id = versionId)
+        loadChapter(_currentBook.value, _currentChapter.value)
+    }
+
+    private suspend fun downloadAndSwitch(versionId: String, versionName: String) {
+        _downloadingVersionId.value = versionId
+        _downloadProgress.value = 0f
+        _downloadError.value = null
+
+        val bookNames = BibleBooks.allBooks.map { it.name.lowercase() }
+        val chapterCounts = BibleBooks.allBooks.map { it.chapters.size }
+
+        val result = repository.downloadVersion(
+            versionId = versionId,
+            versionName = versionName,
+            bookNames = bookNames,
+            chapterCounts = chapterCounts,
+            onProgress = { _downloadProgress.value = it }
+        )
+
+        _downloadingVersionId.value = null
+
+        result.fold(
+            onSuccess = { switchToVersion(versionId) },
+            onFailure = { _downloadError.value = it.message }
+        )
     }
 }

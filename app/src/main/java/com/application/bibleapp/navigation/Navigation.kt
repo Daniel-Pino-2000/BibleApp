@@ -91,13 +91,9 @@ fun Navigation(
             VersionPickerView(
                 bibleViewModel,
                 modifier = Modifier.fillMaxSize().padding(padding),
-                onBackClick = {
-                    navController.popBackStack()
-                },
                 onVersionClicked = {
                     navController.navigate(Screen.Bible.route)
                 }
-
             )
         }
     }

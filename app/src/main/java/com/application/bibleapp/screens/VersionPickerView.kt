@@ -1,38 +1,34 @@
 package com.application.bibleapp.screens
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
 fun VersionPickerView(
     bibleViewModel: BibleViewModel,
     modifier: Modifier = Modifier,
-    onBackClick: () -> Unit,
     onVersionClicked: () -> Unit
 ) {
     val versions by bibleViewModel.availableVersions.collectAsState()
     val isLoading by bibleViewModel.isLoadingVersions.collectAsState()
     val error by bibleViewModel.versionsError.collectAsState()
+    val selectedVersion by bibleViewModel.selectedVersion.collectAsState()
+    val downloadingVersionId by bibleViewModel.downloadingVersionId.collectAsState()
+    val downloadProgress by bibleViewModel.downloadProgress.collectAsState()
+    val downloadError by bibleViewModel.downloadError.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
 
-        // loading spinner while fetching
         if (isLoading) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator()
@@ -40,7 +36,6 @@ fun VersionPickerView(
             return@Column
         }
 
-        // show error message if fetch failed
         if (error != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -56,7 +51,6 @@ fun VersionPickerView(
             return@Column
         }
 
-        // empty state message
         if (versions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Text("No versions available")
@@ -64,19 +58,55 @@ fun VersionPickerView(
             return@Column
         }
 
-        Text("Versions count: ${versions.size}", modifier = Modifier.padding(8.dp))
+        // Download error banner
+        downloadError?.let {
+            Text(
+                text = "Download failed: $it",
+                color = Color.Red,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
 
         LazyColumn {
             items(versions) { version ->
-                Text(
-                    text = "${version.version} - ${version.language.name}",
+                val isSelected = version.id == selectedVersion.id
+                val isDownloading = version.id == downloadingVersionId
+
+                Row(
                     modifier = Modifier
-                        .clickable {
-                            bibleViewModel.setSelectedVersion(version.id)
+                        .fillMaxWidth()
+                        .clickable(enabled = downloadingVersionId == null) {
+                            bibleViewModel.selectVersion(version.id, version.version)
                             onVersionClicked()
                         }
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
-                )
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(text = "${version.version} - ${version.language.name}")
+                        if (isDownloading) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            LinearProgressIndicator(
+                                progress = { downloadProgress },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Text(
+                                text = "${(downloadProgress * 100).toInt()}%",
+                                fontSize = 12.sp,
+                                color = Color.Gray
+                            )
+                        }
+                    }
+
+                    if (isSelected) {
+                        Text(
+                            text = "✓",
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(start = 8.dp)
+                        )
+                    }
+                }
+
                 HorizontalDivider()
             }
         }

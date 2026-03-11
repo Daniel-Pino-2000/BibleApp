@@ -13,101 +13,52 @@ class RemoteBibleDataSource(
 
     private val client = HttpClientProvider.client
 
-    /**
-     * Fetch a single verse from the remote API
-     */
     suspend fun getVerse(
         version: String,
         bookName: String,
         chapter: Int,
         verseNumber: Int
     ): BibleVerse? {
-
         return try {
-
-            val url =
-                "$baseUrl/bibles/$version/books/${bookName.lowercase()}/chapters/$chapter/verses/$verseNumber.json"
-
+            val url = "$baseUrl/bibles/$version/books/${bookName.lowercase()}/chapters/$chapter/verses/$verseNumber.json"
             Log.d("BibleAPI", "Fetching verse from $url")
-
             val response: ApiVerseDto = client.get(url).body()
-
             val bookId = BibleBooks.getBookByName(bookName)?.id
                 ?: throw IllegalArgumentException("Unknown book: $bookName")
-
             response.toBibleVerse(bookId, chapter)
-
         } catch (e: Exception) {
-
-            Log.e(
-                "BibleAPI",
-                "ERROR fetching verse: ${e::class.simpleName} - ${e.message}"
-            )
-
+            Log.e("BibleAPI", "ERROR fetching verse: ${e::class.simpleName} - ${e.message}")
             null
         }
     }
 
     /**
-     * Fetch an entire chapter
+     * Returns the raw DTO — used by BibleDatabaseManager during version download.
      */
-    suspend fun getChapter(
+    suspend fun getChapterDto(
         version: String,
         book: String,
         chapter: Int
-    ): List<VerseUI>? {
-
+    ): ApiChapterDto? {
         return try {
-
-            val url =
-                "$baseUrl/bibles/$version/books/${book.lowercase()}/chapters/$chapter.json"
-
-            Log.d("BibleAPI", "Fetching chapter from $url")
-
-            val apiChapter: ApiChapterDto = client.get(url).body()
-
-            val bookId = BibleBooks.getBookByName(book)?.id
-                ?: throw IllegalArgumentException("Unknown book: $book")
-
-            apiChapter.data.map { verse ->
-                verse.toUIVerse(bookId, chapter)
-            }
-
+            val url = "$baseUrl/bibles/$version/books/${book.lowercase()}/chapters/$chapter.json"
+            Log.d("BibleAPI", "Fetching chapter DTO from $url")
+            client.get(url).body()
         } catch (e: Exception) {
-
-            Log.e(
-                "BibleAPI",
-                "ERROR fetching chapter: ${e::class.simpleName} - ${e.message}"
-            )
-
+            Log.e("BibleAPI", "ERROR fetching chapter DTO: ${e::class.simpleName} - ${e.message}")
             null
         }
     }
 
-    /**
-     * Fetch list of available Bible versions
-     */
     suspend fun getAvailableVersions(): List<BibleVersionDto> {
-
         return try {
-
             val url = "$baseUrl/bibles/bibles.json"
-
             Log.d("BibleAPI", "Fetching versions from $url")
-
             val versions: List<BibleVersionDto> = client.get(url).body()
-
             Log.d("BibleAPI", "Loaded ${versions.size} Bible versions")
-
             versions
-
         } catch (e: Exception) {
-
-            Log.e(
-                "BibleAPI",
-                "ERROR fetching versions: ${e::class.simpleName} - ${e.message}"
-            )
-
+            Log.e("BibleAPI", "ERROR fetching versions: ${e::class.simpleName} - ${e.message}")
             emptyList()
         }
     }
