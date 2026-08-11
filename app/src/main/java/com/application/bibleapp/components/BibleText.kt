@@ -1,6 +1,7 @@
 package com.application.bibleapp.components
 
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
@@ -14,10 +15,13 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.font.FontStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.application.bibleapp.data.model.StoredHeading
 import com.application.bibleapp.data.model.VerseRun
 import com.application.bibleapp.data.model.VerseUI
 
@@ -50,8 +54,30 @@ fun BibleText(
         contentPadding = PaddingValues(vertical = 5.dp, horizontal = 5.dp)
     ) {
         items(verses) { verse ->
+            verse.richContent?.headings?.forEach { heading ->
+                HeadingText(heading)
+            }
             Text(text = verseAnnotatedString(verse, wordsOfJesusColor))
         }
+    }
+}
+
+/** A section heading or Hebrew subtitle preceding the verse it introduces. */
+@Composable
+private fun HeadingText(heading: StoredHeading) {
+    if (heading.type == "hebrew_subtitle") {
+        Text(
+            text = heading.text,
+            style = MaterialTheme.typography.bodyMedium.copy(fontStyle = FontStyle.Italic),
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp, bottom = 4.dp)
+        )
+    } else {
+        Text(
+            text = heading.text,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.padding(top = 12.dp, bottom = 4.dp)
+        )
     }
 }
 
