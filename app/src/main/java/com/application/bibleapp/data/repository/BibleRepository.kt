@@ -4,6 +4,7 @@ import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.local.VersionDownloadSummary
 import com.application.bibleapp.data.model.BibleTranslation
+import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleRemoteDataSource
@@ -20,6 +21,11 @@ class BibleRepository(
             BibleDatabaseManager
                 .getVersesByChapter(context, bookId, chapter, versionId)
                 .map { it.toUI() }
+        }
+
+    suspend fun getFootnotes(bookId: Int, chapter: Int, versionId: String): List<Footnote> =
+        withContext(Dispatchers.IO) {
+            BibleDatabaseManager.getFootnotesForChapter(context, bookId, chapter, versionId)
         }
 
     suspend fun searchVerses(query: String, versionId: String): List<VerseUI> =

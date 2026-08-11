@@ -79,6 +79,7 @@ class HelloAoBibleDataSource(
                     translationName = dto.translation.shortName?.takeIf { it.isNotBlank() }
                         ?: dto.translation.englishName,
                     verses = mapping.verses,
+                    footnotes = mapping.footnotes,
                     downloadedChapterCount = mapping.downloadedChapterCount,
                     skippedBookCount = mapping.skippedBookCount
                 )

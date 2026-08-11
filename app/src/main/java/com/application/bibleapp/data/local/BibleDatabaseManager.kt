@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.decodeVerseContentOrNull
 import com.application.bibleapp.data.model.encodeToJson
@@ -112,7 +113,25 @@ object BibleDatabaseManager {
         )
         addColumnIfMissing(db, "downloaded_verses", "rich_content", "TEXT")
 
-        Log.d("BibleDB", "Downloaded versions/verses tables ready")
+        // Footnote text is chapter-wide, referenced by noteId from a verse's rich_content
+        // runs — kept in its own table rather than duplicated per-verse.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS downloaded_footnotes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                version TEXT NOT NULL,
+                book_id INTEGER NOT NULL,
+                chapter INTEGER NOT NULL,
+                note_id INTEGER NOT NULL,
+                verse INTEGER NOT NULL,
+                caller TEXT,
+                text TEXT NOT NULL,
+                UNIQUE(version, book_id, chapter, note_id)
+            )
+            """.trimIndent()
+        )
+
+        Log.d("BibleDB", "Downloaded versions/verses/footnotes tables ready")
     }
 
     /**
@@ -225,6 +244,24 @@ object BibleDatabaseManager {
                     )
                 }
 
+                downloaded.footnotes.forEach { footnote ->
+                    db.execSQL(
+                        """
+                        INSERT OR REPLACE INTO downloaded_footnotes (version, book_id, chapter, note_id, verse, caller, text)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        """.trimIndent(),
+                        arrayOf(
+                            translationId,
+                            footnote.bookId,
+                            footnote.chapter,
+                            footnote.noteId,
+                            footnote.verse,
+                            footnote.caller,
+                            footnote.text
+                        )
+                    )
+                }
+
                 db.execSQL(
                     "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
                     arrayOf(translationId, downloaded.translationName, System.currentTimeMillis())
@@ -233,7 +270,7 @@ object BibleDatabaseManager {
                 Log.d(
                     "BibleDB",
                     "Version $translationId saved successfully (${downloaded.verses.size} verses, " +
-                        "${downloaded.skippedBookCount} book(s) skipped)"
+                        "${downloaded.footnotes.size} footnotes, ${downloaded.skippedBookCount} book(s) skipped)"
                 )
                 onProgress(1f)
                 Result.success(
@@ -294,6 +331,37 @@ object BibleDatabaseManager {
         }
         cursor.close()
         return verses
+    }
+
+    /**
+     * Footnotes for one chapter of a downloaded (non-KJV) version. KJV has no
+     * footnote table at all — it's the bundled asset DB, never touched by the
+     * helloao path — so this simply returns empty for "kjv" rather than querying.
+     */
+    fun getFootnotesForChapter(context: Context, bookId: Int, chNum: Int, version: String): List<Footnote> {
+        if (version == "kjv") return emptyList()
+        val db = getDatabase(context)
+
+        val cursor = db.rawQuery(
+            "SELECT note_id, verse, caller, text FROM downloaded_footnotes " +
+                "WHERE version = ? AND book_id = ? AND chapter = ? ORDER BY note_id",
+            arrayOf(version, bookId.toString(), chNum.toString())
+        )
+
+        val footnotes = mutableListOf<Footnote>()
+        cursor.use {
+            while (it.moveToNext()) {
+                footnotes.add(
+                    Footnote(
+                        noteId = it.getInt(0),
+                        verse = it.getInt(1),
+                        caller = if (it.isNull(2)) null else it.getString(2),
+                        text = it.getString(3)
+                    )
+                )
+            }
+        }
+        return footnotes
     }
 
     private fun buildNormalizedSql(textExpr: String): String {

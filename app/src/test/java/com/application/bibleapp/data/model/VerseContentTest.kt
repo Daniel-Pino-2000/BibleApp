@@ -22,6 +22,21 @@ class VerseContentTest {
     }
 
     @Test
+    fun `footnoteId round-trips and legacy runs default to no footnote`() {
+        val original = StoredVerseContent(
+            runs = listOf(
+                VerseRun(text = "And God said, \"Let there be light,\"", footnoteId = 0),
+                VerseRun(text = "and there was light.")
+            )
+        )
+
+        val decoded = decodeVerseContentOrNull(original.encodeToJson())
+
+        assertEquals(0, decoded?.runs?.get(0)?.footnoteId)
+        assertNull(decoded?.runs?.get(1)?.footnoteId)
+    }
+
+    @Test
     fun `null raw string decodes to null`() {
         assertNull(decodeVerseContentOrNull(null))
     }

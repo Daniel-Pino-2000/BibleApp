@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DEFAULT_VERSION
+import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
@@ -22,6 +23,13 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     private val _verses = MutableStateFlow<List<VerseUI>>(emptyList())
     val verses: StateFlow<List<VerseUI>> = _verses.asStateFlow()
+
+    private val _footnotes = MutableStateFlow<List<Footnote>>(emptyList())
+    val footnotes: StateFlow<List<Footnote>> = _footnotes.asStateFlow()
+
+    // The footnote currently shown in a bottom sheet, or null when none is open.
+    private val _selectedFootnote = MutableStateFlow<Footnote?>(null)
+    val selectedFootnote: StateFlow<Footnote?> = _selectedFootnote.asStateFlow()
 
     private val _currentBook = MutableStateFlow(1)
     val currentBook: StateFlow<Int> = _currentBook
@@ -81,16 +89,23 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
         viewModelScope.launch {
-            val chapterData = repository.getChapter(
-                bookId = bookId,
-                chapter = chapterId,
-                versionId = _selectedVersion.value.id
-            )
+            val versionId = _selectedVersion.value.id
+            val chapterData = repository.getChapter(bookId = bookId, chapter = chapterId, versionId = versionId)
             _verses.value = chapterData
+            _footnotes.value = repository.getFootnotes(bookId = bookId, chapter = chapterId, versionId = versionId)
             _currentBook.value = bookId
             _currentChapter.value = chapterId
             _currentVerse.value = verseId.coerceIn(1, chapterData.size)
         }
+    }
+
+    /** Opens the footnote bottom sheet for [noteId] in the chapter currently on screen, if found. */
+    fun selectFootnote(noteId: Int) {
+        _selectedFootnote.value = _footnotes.value.firstOrNull { it.noteId == noteId }
+    }
+
+    fun dismissFootnote() {
+        _selectedFootnote.value = null
     }
 
     fun previousChapter() {

@@ -151,4 +151,40 @@ class HelloAoContentParserTest {
 
         assertTrue(HelloAoContentParser.extractVerses(content).isEmpty())
     }
+
+    @Test
+    fun `noteId marker attaches to the immediately preceding run, not later ones`() {
+        // Real shape from BSB Genesis 1:3.
+        val content = parseContent(
+            """
+            [{"type":"verse","number":3,"content":[
+                "And God said, \"Let there be light,\"",
+                {"noteId":0},
+                "and there was light."
+            ]}]
+            """.trimIndent()
+        )
+
+        val runs = HelloAoContentParser.extractVerses(content)[0].richContent.runs
+
+        assertEquals(2, runs.size)
+        assertEquals(0, runs[0].footnoteId)
+        assertEquals(null, runs[1].footnoteId)
+    }
+
+    @Test
+    fun `extractFootnotes maps DTOs to plain records and drops entries with no verse reference`() {
+        val footnotes = listOf(
+            HelloAoFootnoteDto(noteId = 0, text = "Cited in 2 Corinthians 4:6", caller = "+", reference = HelloAoFootnoteReferenceDto(1, 3)),
+            HelloAoFootnoteDto(noteId = 1, text = "No reference, should be dropped", caller = "+", reference = null)
+        )
+
+        val result = HelloAoContentParser.extractFootnotes(footnotes)
+
+        assertEquals(1, result.size)
+        assertEquals(0, result[0].noteId)
+        assertEquals(3, result[0].verse)
+        assertEquals("+", result[0].caller)
+        assertEquals("Cited in 2 Corinthians 4:6", result[0].text)
+    }
 }

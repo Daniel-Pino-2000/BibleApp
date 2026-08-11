@@ -1,5 +1,6 @@
 package com.application.bibleapp.data.remote
 
+import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.StoredHeading
 import com.application.bibleapp.data.model.StoredVerseContent
 import com.application.bibleapp.data.model.VerseRun
@@ -23,12 +24,11 @@ data class ParsedVerse(
 /**
  * Parses a chapter's polymorphic `content[]` array into verses, preserving
  * enough structure to render red-letter text (stage 1), poem indentation and
- * line breaks (stage 2), and section headings (stage 3) — see docs at
- * https://bible.helloao.org/docs/reference/.
+ * line breaks (stage 2), section headings (stage 3), and footnote markers
+ * (stage 4) — see docs at https://bible.helloao.org/docs/reference/.
  *
  * Headings/hebrew_subtitle are chapter-level entries that precede whichever
- * verse comes next; they're captured on [StoredVerseContent.headings] here
- * but only populated once a verse consumes them — stage 3 wires up rendering.
+ * verse comes next; they're captured on [StoredVerseContent.headings] here.
  *
  * Pure/no Android dependency, so it's plain-JVM testable.
  */
@@ -71,6 +71,13 @@ object HelloAoContentParser {
         return verses
     }
 
+    /** Maps a chapter's footnotes[] to plain records keyed by noteId, dropping any without a verse reference. */
+    fun extractFootnotes(footnotes: List<HelloAoFootnoteDto>): List<Footnote> =
+        footnotes.mapNotNull { dto ->
+            val verse = dto.reference?.verse ?: return@mapNotNull null
+            Footnote(noteId = dto.noteId, verse = verse, caller = dto.caller, text = dto.text)
+        }
+
     private fun flattenStringArray(items: JsonArray?): String =
         items.orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
             .joinToString(" ").replace(Regex("\\s+"), " ").trim()
@@ -78,9 +85,13 @@ object HelloAoContentParser {
     /**
      * A verse's own content[] mixes plain strings with objects like
      * {"text":..., "poem":N, "wordsOfJesus":true}, {"lineBreak":true},
-     * {"heading":...}, and {"noteId":N}. Footnote markers and inline headings
-     * are dropped here — footnotes are stage 4's job, and inline headings
-     * (rare) aren't distinguishable from section headings in the UI yet.
+     * {"heading":...}, and {"noteId":N}. A {"noteId":N} marker has no text of
+     * its own — it attaches to whichever run immediately precedes it (that's
+     * where it appears in the source, e.g. Genesis 1:3's
+     * "...Let there be light," {"noteId":0} "and there was light."), so the
+     * footnote indicator renders right after the text it annotates. Inline
+     * {"heading":...} markers are dropped — rare, and not distinguishable
+     * from section headings in the UI.
      */
     private fun buildRuns(items: JsonArray): List<VerseRun> {
         val runs = mutableListOf<VerseRun>()
@@ -98,6 +109,12 @@ object HelloAoContentParser {
                 is JsonObject -> {
                     when {
                         item["lineBreak"]?.jsonPrimitive?.booleanOrNull == true -> pendingLineBreak = true
+                        item["noteId"] != null -> {
+                            val noteId = item["noteId"]?.jsonPrimitive?.intOrNull
+                            if (noteId != null && runs.isNotEmpty()) {
+                                runs[runs.lastIndex] = runs.last().copy(footnoteId = noteId)
+                            }
+                        }
                         item["text"] != null -> {
                             val text = item["text"]?.jsonPrimitive?.contentOrNull ?: return@forEach
                             runs += VerseRun(
@@ -108,7 +125,6 @@ object HelloAoContentParser {
                             )
                             pendingLineBreak = false
                         }
-                        // {"noteId": N} footnote references and inline {"heading": ...} markers: no text to append
                     }
                 }
                 else -> {}

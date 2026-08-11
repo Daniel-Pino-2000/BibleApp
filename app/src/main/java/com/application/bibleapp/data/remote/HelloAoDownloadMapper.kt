@@ -10,6 +10,7 @@ object HelloAoDownloadMapper {
 
     data class MappingResult(
         val verses: List<MappedVerse>,
+        val footnotes: List<MappedFootnote>,
         val downloadedChapterCount: Int,
         val skippedBookCount: Int
     )
@@ -23,6 +24,7 @@ object HelloAoDownloadMapper {
      */
     fun map(complete: HelloAoCompleteTranslationDto): MappingResult {
         val verses = mutableListOf<MappedVerse>()
+        val footnotes = mutableListOf<MappedFootnote>()
         var skippedBooks = 0
         var chapterCount = 0
 
@@ -44,11 +46,22 @@ object HelloAoDownloadMapper {
                         richContent = parsedVerse.richContent
                     )
                 }
+                HelloAoContentParser.extractFootnotes(chapterEntry.chapter.footnotes).forEach { footnote ->
+                    footnotes += MappedFootnote(
+                        bookId = book.order,
+                        chapter = chapterNumber,
+                        noteId = footnote.noteId,
+                        verse = footnote.verse,
+                        caller = footnote.caller,
+                        text = footnote.text
+                    )
+                }
             }
         }
 
         return MappingResult(
             verses = verses,
+            footnotes = footnotes,
             downloadedChapterCount = chapterCount,
             skippedBookCount = skippedBooks
         )

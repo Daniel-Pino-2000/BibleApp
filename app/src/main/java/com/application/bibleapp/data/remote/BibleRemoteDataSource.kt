@@ -19,6 +19,16 @@ data class MappedVerse(
     val richContent: StoredVerseContent? = null
 )
 
+/** A single footnote ready to persist, scoped to a specific book/chapter/version. */
+data class MappedFootnote(
+    val bookId: Int,
+    val chapter: Int,
+    val noteId: Int,
+    val verse: Int,
+    val caller: String?,
+    val text: String
+)
+
 /**
  * Result of a full-translation download: every verse the source provided,
  * plus counts describing what was skipped (e.g. apocryphal books outside the
@@ -29,6 +39,7 @@ data class DownloadedTranslation(
     val translationId: String,
     val translationName: String,
     val verses: List<MappedVerse>,
+    val footnotes: List<MappedFootnote>,
     val downloadedChapterCount: Int,
     val skippedBookCount: Int
 )

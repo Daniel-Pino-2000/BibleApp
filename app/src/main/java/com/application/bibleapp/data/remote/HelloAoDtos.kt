@@ -64,10 +64,27 @@ data class HelloAoChapterEntryDto(
  * [content] is a heterogeneous array ("heading", "line_break", "verse",
  * "hebrew_subtitle" items, each shaped differently) — kept as raw [JsonElement]s
  * and walked manually by [HelloAoContentParser] rather than forced into a
- * polymorphic sealed hierarchy we don't otherwise need.
+ * polymorphic sealed hierarchy we don't otherwise need. [footnotes] is the
+ * chapter-wide footnote text table that inline {"noteId":N} markers inside
+ * [content] reference.
  */
 @Serializable
 data class HelloAoChapterContentDto(
     val number: Int,
-    val content: List<JsonElement> = emptyList()
+    val content: List<JsonElement> = emptyList(),
+    val footnotes: List<HelloAoFootnoteDto> = emptyList()
+)
+
+@Serializable
+data class HelloAoFootnoteDto(
+    val noteId: Int,
+    val text: String,
+    val caller: String? = null,
+    val reference: HelloAoFootnoteReferenceDto? = null
+)
+
+@Serializable
+data class HelloAoFootnoteReferenceDto(
+    val chapter: Int,
+    val verse: Int
 )

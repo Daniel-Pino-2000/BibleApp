@@ -113,4 +113,29 @@ class HelloAoDownloadMapperTest {
         assertEquals(1, richContent?.runs?.size)
         assertEquals("In the beginning...", richContent?.runs?.first()?.text)
     }
+
+    @Test
+    fun `footnotes are scoped to the book and chapter they came from`() {
+        val chapterWithFootnote = HelloAoChapterEntryDto(
+            numberOfVerses = 1,
+            chapter = HelloAoChapterContentDto(
+                number = 1,
+                content = listOf(verseContent(3, "Let there be light")),
+                footnotes = listOf(
+                    HelloAoFootnoteDto(noteId = 0, text = "Cited elsewhere", caller = "+", reference = HelloAoFootnoteReferenceDto(1, 3))
+                )
+            )
+        )
+        val dto = translation(book("GEN", order = 1, chapters = listOf(chapterWithFootnote)))
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        assertEquals(1, result.footnotes.size)
+        val footnote = result.footnotes.single()
+        assertEquals(1, footnote.bookId)
+        assertEquals(1, footnote.chapter)
+        assertEquals(0, footnote.noteId)
+        assertEquals(3, footnote.verse)
+        assertEquals("Cited elsewhere", footnote.text)
+    }
 }
