@@ -34,6 +34,12 @@ data class ParsedVerse(
  */
 object HelloAoContentParser {
 
+    /**
+     * Walks one chapter's `content[]` in order, accumulating "heading"/"hebrew_subtitle"
+     * entries until the next "verse" entry claims them. A verse with markers but no
+     * actual text (e.g. only a stray `{"noteId":N}`) is dropped — there's nothing to
+     * store or render for it.
+     */
     fun extractVerses(content: List<JsonElement>): List<ParsedVerse> {
         val verses = mutableListOf<ParsedVerse>()
         val pendingHeadings = mutableListOf<StoredHeading>()

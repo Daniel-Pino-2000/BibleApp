@@ -24,6 +24,19 @@ class TranslationNotFoundException(url: String) : IOException("Translation not f
  * Client for the Free Use Bible API (bible.helloao.org). Replaces the old
  * per-chapter wldeh client: a whole translation is now one `complete.json`
  * request instead of ~1,189 individual chapter requests.
+ *
+ * Only two of the API's endpoints are used:
+ * - `GET /api/available_translations.json` — the full translation catalog, used
+ *   once to populate the version picker (see [getAvailableTranslations]).
+ * - `GET /api/{translationId}/complete.json` — the whole Bible for one
+ *   translation in one response (see [downloadTranslation]).
+ *
+ * The API also exposes `GET /api/{translationId}/books.json` (book list without
+ * verse content) and `GET /api/{translationId}/{book}/{chapter}.json`
+ * (single-chapter content) — neither is called here. `complete.json` already
+ * contains every book's chapters and verses in one shot, so a separate
+ * books-only or chapter-by-chapter call would just be redundant round trips
+ * for data this client already has.
  */
 class HelloAoBibleDataSource(
     private val baseUrl: String = "https://bible.helloao.org",
@@ -45,6 +58,7 @@ class HelloAoBibleDataSource(
 
     private fun isValidTranslationId(id: String) = id.isNotBlank() && TRANSLATION_ID_PATTERN.matches(id)
 
+    /** Not retried on failure — this is a small (~KB) request the caller can just retry manually. */
     override suspend fun getAvailableTranslations(): List<BibleTranslation> {
         val url = "$baseUrl/api/available_translations.json"
         Log.d(TAG, "Fetching translations from $url")

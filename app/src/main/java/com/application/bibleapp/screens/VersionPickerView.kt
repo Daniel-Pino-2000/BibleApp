@@ -19,6 +19,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.application.bibleapp.viewmodel.BibleViewModel
 
+/**
+ * Renders each translation with one of three states, purely from what
+ * [BibleViewModel.selectedVersion] and [BibleViewModel.downloadedVersions] say —
+ * this composable never queries local storage itself:
+ * - active (blue checkmark) — `version.id == selectedVersion.id`.
+ * - downloaded, not active (gray check + "Downloaded", or a refresh icon +
+ *   "Update available" if [com.application.bibleapp.data.model.DownloadedVersionInfo.isUpToDate]
+ *   is false) — `version.id` is a key in `downloadedVersions`.
+ * - neither — tapping it downloads before switching.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VersionPickerView(

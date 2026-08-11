@@ -13,6 +13,15 @@ import com.application.bibleapp.data.remote.BibleRemoteDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/**
+ * Sits between [BibleViewModel][com.application.bibleapp.viewmodel.BibleViewModel] and
+ * the two data sources it coordinates: [remote] (the [BibleRemoteDataSource]
+ * interface, currently backed by the helloao API client) for the translation
+ * catalog and downloads, and [BibleDatabaseManager] for everything already on
+ * disk. The ViewModel never talks to either directly — this is the one place
+ * that decides *where* a piece of data comes from, so swapping the remote
+ * source (or adding a cache layer) later only touches this class.
+ */
 class BibleRepository(
     private val context: Context,
     private val remote: BibleRemoteDataSource

@@ -26,6 +26,23 @@ data class VersionDownloadSummary(
     val skippedBookCount: Int
 )
 
+/**
+ * Owns the single on-device SQLite connection and every query/write against it.
+ *
+ * Storage model: the bundled `KJV_verses` table (shipped as an asset, `text` only)
+ * is never modified. Everything downloaded from the helloao API lands in three
+ * separate tables instead — `downloaded_versions` (one row per downloaded
+ * translation, plus [DownloadedVersionInfo.schemaVersion] recording which shape
+ * of [downloadAndSaveVersion] wrote it), `downloaded_verses` (`text` for search,
+ * `rich_content` for rendering — see [encodeToJson]/[decodeVerseContentOrNull]),
+ * and `downloaded_footnotes` (chapter-wide footnote text, looked up separately
+ * from verse rendering by version/book/chapter/noteId rather than duplicated
+ * onto every verse that references one).
+ *
+ * New columns/tables are added idempotently via [addColumnIfMissing] rather than
+ * a versioned migration framework — there's no ordered migration history to
+ * replay, just "does this column exist yet."
+ */
 object BibleDatabaseManager {
 
     private const val DB_NAME = "bible_default.db"

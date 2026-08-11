@@ -12,6 +12,7 @@ import kotlinx.serialization.json.JsonElement
  * GET https://bible.helloao.org/api/{translation}/complete.json.
  */
 
+/** Top-level shape of `GET /api/available_translations.json` — the full translation catalog, ~1,200 entries. */
 @Serializable
 data class HelloAoTranslationsResponseDto(
     val translations: List<HelloAoTranslationDto> = emptyList()
@@ -38,6 +39,12 @@ fun HelloAoTranslationDto.toBibleTranslation(): BibleTranslation = BibleTranslat
     textDirection = if (textDirection == "rtl") TextDirection.RTL else TextDirection.LTR
 )
 
+/**
+ * Top-level shape of `GET /api/{translationId}/complete.json` — the entire Bible
+ * (all 66 books, every chapter and verse) in a single response, typically 5-10MB.
+ * This is the one request [HelloAoBibleDataSource.downloadTranslation] makes per
+ * translation; there is no per-chapter endpoint in this client at all.
+ */
 @Serializable
 data class HelloAoCompleteTranslationDto(
     val translation: HelloAoTranslationDto,

@@ -20,6 +20,23 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
+/**
+ * Version state is split across three flows that the version picker composes
+ * together rather than one combined "picker state" object:
+ * - [selectedVersion] — which translation is on screen right now.
+ * - [downloadedVersions] — every translation that actually has rows in local
+ *   storage, keyed by id with a [DownloadedVersionInfo.schemaVersion] so the
+ *   picker can tell "downloaded" apart from "downloaded but stale" (see
+ *   [refreshDownloadedVersions]). This is queried from SQLite once per
+ *   version-list load, not per row, and re-queried after every
+ *   download/re-download so it never drifts from what's on disk.
+ * - [downloadingVersionId]/[downloadProgress] — in-flight download state,
+ *   `null` when nothing is downloading.
+ *
+ * Kept separate because they change independently: switching versions doesn't
+ * touch the downloaded set, and a download in progress doesn't change which
+ * version is currently selected until it finishes.
+ */
 class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     private val _verses = MutableStateFlow<List<VerseUI>>(emptyList())
