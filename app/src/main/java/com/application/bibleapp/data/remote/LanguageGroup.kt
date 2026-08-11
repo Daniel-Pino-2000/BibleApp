@@ -1,40 +1,43 @@
 package com.application.bibleapp.data.remote
 
+import com.application.bibleapp.data.model.BibleTranslation
+
 /**
- * Versions available in one language, ready for display under a section header.
+ * Translations available in one language, ready for display under a section header.
  */
 data class LanguageGroup(
     val languageName: String,
     val languageCode: String,
-    val versions: List<BibleVersionDto>
+    val translations: List<BibleTranslation>
 )
 
 /**
- * Groups [versions] by language (sorted alphabetically by language name), optionally
- * filtered first by [query] against language name, version name, and description.
- * Pure function — no Android/network dependency — so it's plain-JVM testable.
+ * Groups [translations] by language (sorted alphabetically by language name),
+ * optionally filtered first by [query] against language name, display name, and
+ * native name. Pure function — no Android/network dependency — so it's plain-JVM
+ * testable.
  */
-fun groupVersionsByLanguage(versions: List<BibleVersionDto>, query: String = ""): List<LanguageGroup> {
+fun groupVersionsByLanguage(translations: List<BibleTranslation>, query: String = ""): List<LanguageGroup> {
     val trimmedQuery = query.trim()
     val filtered = if (trimmedQuery.isEmpty()) {
-        versions
+        translations
     } else {
-        versions.filter { version ->
-            version.language.name.contains(trimmedQuery, ignoreCase = true) ||
-                version.version.contains(trimmedQuery, ignoreCase = true) ||
-                version.description?.contains(trimmedQuery, ignoreCase = true) == true
+        translations.filter { translation ->
+            translation.languageName.contains(trimmedQuery, ignoreCase = true) ||
+                translation.displayName.contains(trimmedQuery, ignoreCase = true) ||
+                translation.nativeName.contains(trimmedQuery, ignoreCase = true)
         }
     }
 
     return filtered
-        .groupBy { it.language.name }
+        .groupBy { it.languageName }
         .entries
         .sortedBy { it.key.lowercase() }
-        .map { (languageName, versionsInLanguage) ->
+        .map { (languageName, translationsInLanguage) ->
             LanguageGroup(
                 languageName = languageName,
-                languageCode = versionsInLanguage.first().language.code,
-                versions = versionsInLanguage.sortedBy { it.version.lowercase() }
+                languageCode = translationsInLanguage.first().languageCode,
+                translations = translationsInLanguage.sortedBy { it.displayName.lowercase() }
             )
         }
 }

@@ -2,20 +2,17 @@ package com.application.bibleapp.data.repository
 
 import android.content.Context
 import com.application.bibleapp.data.local.BibleDatabaseManager
-import com.application.bibleapp.data.model.BibleBooks
-import com.application.bibleapp.data.model.BibleBooks.getBookById
-import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.local.VersionDownloadSummary
+import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
-import com.application.bibleapp.data.remote.BibleVersionDto
-import com.application.bibleapp.data.remote.DownloadSummary
-import com.application.bibleapp.data.remote.RemoteBibleDataSource
+import com.application.bibleapp.data.remote.BibleRemoteDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
 class BibleRepository(
     private val context: Context,
-    private val remote: RemoteBibleDataSource
+    private val remote: BibleRemoteDataSource
 ) {
 
     suspend fun getChapter(bookId: Int, chapter: Int, versionId: String): List<VerseUI> =
@@ -31,7 +28,7 @@ class BibleRepository(
             else BibleDatabaseManager.searchVerses(query, versionId)
         }
 
-    suspend fun getAllVersions(): List<BibleVersionDto> = remote.getAvailableVersions()
+    suspend fun getAllVersions(): List<BibleTranslation> = remote.getAvailableTranslations()
 
     // BibleDatabaseManager.isVersionDownloaded runs a blocking SQLite query; keep it off
     // whatever dispatcher the caller happens to be on (viewModelScope defaults to Main).
@@ -39,23 +36,13 @@ class BibleRepository(
         BibleDatabaseManager.isVersionDownloaded(context, versionId)
     }
 
-    /**
-     * Downloads [versionId] and persists it to the local DB.
-     * Pass the same [bookNames] + [chapterCounts] lists you use elsewhere in the app.
-     * [onProgress] fires with 0f–1f as chapters complete.
-     */
+    /** Downloads [translationId] (a single bulk request under the hood) and persists it to the local DB. */
     suspend fun downloadVersion(
-        versionId: String,
-        versionName: String,
-        bookNames: List<String>,
-        chapterCounts: List<Int>,
+        translationId: String,
         onProgress: (Float) -> Unit = {}
-    ): Result<DownloadSummary> = BibleDatabaseManager.downloadAndSaveVersion(
+    ): Result<VersionDownloadSummary> = BibleDatabaseManager.downloadAndSaveVersion(
         context = context,
-        versionId = versionId,
-        versionName = versionName,
-        bookNames = bookNames,
-        chapterCounts = chapterCounts,
+        translationId = translationId,
         remote = remote,
         onProgress = onProgress
     )

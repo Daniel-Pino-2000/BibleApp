@@ -124,7 +124,7 @@ fun VersionPickerView(
                     }
                 }
 
-                items(group.versions, key = { it.id }) { version ->
+                items(group.translations, key = { it.id }) { version ->
                     val isSelected = version.id == selectedVersion.id
                     val isDownloading = version.id == downloadingVersionId
 
@@ -134,7 +134,7 @@ fun VersionPickerView(
                             .clickable(enabled = downloadingVersionId == null) {
                                 // Only leave this screen once the version is actually ready —
                                 // otherwise the download progress/error never gets seen.
-                                bibleViewModel.selectVersion(version.id, version.version) { success ->
+                                bibleViewModel.selectVersion(version.id) { success ->
                                     if (success) onVersionClicked()
                                 }
                             }
@@ -142,9 +142,9 @@ fun VersionPickerView(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = version.version)
-                            version.description?.takeIf { it.isNotBlank() }?.let { description ->
-                                Text(text = description, fontSize = 12.sp, color = Color.Gray)
+                            Text(text = version.displayName)
+                            version.nativeName.takeIf { it.isNotBlank() && it != version.displayName }?.let { nativeName ->
+                                Text(text = nativeName, fontSize = 12.sp, color = Color.Gray)
                             }
                             if (isDownloading) {
                                 Spacer(modifier = Modifier.height(4.dp))

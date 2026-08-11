@@ -3,11 +3,10 @@ package com.application.bibleapp.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DEFAULT_VERSION
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
-import com.application.bibleapp.data.model.apiSlug
-import com.application.bibleapp.data.remote.BibleVersionDto
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
 import com.application.bibleapp.data.repository.BibleRepository
@@ -39,8 +38,8 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     private val _searchResults = MutableStateFlow<List<VerseUI>>(emptyList())
     val searchResults: StateFlow<List<VerseUI>> = _searchResults.asStateFlow()
 
-    private val _availableVersions = MutableStateFlow<List<BibleVersionDto>>(emptyList())
-    val availableVersions: StateFlow<List<BibleVersionDto>> = _availableVersions.asStateFlow()
+    private val _availableVersions = MutableStateFlow<List<BibleTranslation>>(emptyList())
+    val availableVersions: StateFlow<List<BibleTranslation>> = _availableVersions.asStateFlow()
 
     private val _isLoadingVersions = MutableStateFlow(false)
     val isLoadingVersions: StateFlow<Boolean> = _isLoadingVersions.asStateFlow()
@@ -175,7 +174,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
      * coroutine is even launched) so a double-tap that beats recomposition
      * can't start a second overlapping download of the same DB connection.
      */
-    fun selectVersion(versionId: String, versionName: String, onFinished: (success: Boolean) -> Unit = {}) {
+    fun selectVersion(versionId: String, onFinished: (success: Boolean) -> Unit = {}) {
         if (_downloadingVersionId.value != null) return
         _downloadingVersionId.value = versionId
         _downloadInfo.value = null
@@ -187,7 +186,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
                 onFinished(true)
                 return@launch
             }
-            val success = downloadAndSwitch(versionId, versionName)
+            val success = downloadAndSwitch(versionId)
             onFinished(success)
         }
     }
@@ -202,19 +201,13 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         loadChapter(_currentBook.value, _currentChapter.value)
     }
 
-    private suspend fun downloadAndSwitch(versionId: String, versionName: String): Boolean {
+    private suspend fun downloadAndSwitch(versionId: String): Boolean {
         _downloadingVersionId.value = versionId
         _downloadProgress.value = 0f
         _downloadError.value = null
 
-        val bookNames = BibleBooks.allBooks.map { it.apiSlug() }
-        val chapterCounts = BibleBooks.allBooks.map { it.chapters.size }
-
         val result = repository.downloadVersion(
-            versionId = versionId,
-            versionName = versionName,
-            bookNames = bookNames,
-            chapterCounts = chapterCounts,
+            translationId = versionId,
             onProgress = { _downloadProgress.value = it }
         )
 
@@ -222,9 +215,9 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
         return result.fold(
             onSuccess = { summary ->
-                if (summary.skippedChapters > 0) {
-                    _downloadInfo.value = "Downloaded ${summary.downloadedChapters} of " +
-                        "${summary.attemptedChapters} chapters — some content isn't available in this version."
+                if (summary.skippedBookCount > 0) {
+                    _downloadInfo.value = "Downloaded ${summary.downloadedVerseCount} verses across " +
+                        "${summary.downloadedChapterCount} chapters — some books aren't available in this translation."
                 }
                 switchToVersion(versionId)
                 true

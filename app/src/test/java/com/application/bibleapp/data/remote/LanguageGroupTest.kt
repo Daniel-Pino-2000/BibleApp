@@ -1,46 +1,55 @@
 package com.application.bibleapp.data.remote
 
+import com.application.bibleapp.data.model.BibleTranslation
+import com.application.bibleapp.data.model.TextDirection
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class LanguageGroupTest {
 
-    private fun version(id: String, version: String, language: String, langCode: String, description: String? = null) =
-        BibleVersionDto(
-            id = id,
-            version = version,
-            description = description,
-            language = LanguageDto(name = language, code = langCode)
-        )
+    private fun translation(
+        id: String,
+        displayName: String,
+        languageName: String,
+        langCode: String,
+        nativeName: String = displayName
+    ) = BibleTranslation(
+        id = id,
+        displayName = displayName,
+        nativeName = nativeName,
+        languageName = languageName,
+        languageCode = langCode,
+        textDirection = TextDirection.LTR
+    )
 
     private val sample = listOf(
-        version("en-kjv", "KJV", "English", "en"),
-        version("en-asv", "ASV", "English", "en"),
-        version("grc-grcbrent", "Brenton", "Ancient Greek", "grc"),
-        version("es-rvr", "RVR", "Spanish", "es", description = "Reina Valera")
+        translation("KJV", "KJV", "English", "eng"),
+        translation("BSB", "BSB", "English", "eng", nativeName = "Berean Standard Bible"),
+        translation("GRCBRENT", "Brenton", "Ancient Greek", "grc"),
+        translation("ARBNAV", "NAV", "Arabic", "arb", nativeName = "كتاب الحياة")
     )
 
     @Test
     fun `groups are sorted alphabetically by language name`() {
         val groups = groupVersionsByLanguage(sample)
 
-        assertEquals(listOf("Ancient Greek", "English", "Spanish"), groups.map { it.languageName })
+        assertEquals(listOf("Ancient Greek", "Arabic", "English"), groups.map { it.languageName })
     }
 
     @Test
-    fun `versions within a group are sorted by version name`() {
+    fun `translations within a group are sorted by display name`() {
         val groups = groupVersionsByLanguage(sample)
         val english = groups.first { it.languageName == "English" }
 
-        assertEquals(listOf("ASV", "KJV"), english.versions.map { it.version })
+        assertEquals(listOf("BSB", "KJV"), english.translations.map { it.displayName })
     }
 
     @Test
-    fun `every version ends up in exactly one group`() {
+    fun `every translation ends up in exactly one group`() {
         val groups = groupVersionsByLanguage(sample)
 
-        assertEquals(sample.size, groups.sumOf { it.versions.size })
+        assertEquals(sample.size, groups.sumOf { it.translations.size })
     }
 
     @Test
@@ -51,12 +60,12 @@ class LanguageGroupTest {
     }
 
     @Test
-    fun `search matches version name and description`() {
-        val byVersion = groupVersionsByLanguage(sample, query = "kjv")
-        val byDescription = groupVersionsByLanguage(sample, query = "valera")
+    fun `search matches display name and native name`() {
+        val byDisplayName = groupVersionsByLanguage(sample, query = "kjv")
+        val byNativeName = groupVersionsByLanguage(sample, query = "berean")
 
-        assertEquals(listOf("KJV"), byVersion.flatMap { it.versions }.map { it.version })
-        assertEquals(listOf("RVR"), byDescription.flatMap { it.versions }.map { it.version })
+        assertEquals(listOf("KJV"), byDisplayName.flatMap { it.translations }.map { it.displayName })
+        assertEquals(listOf("BSB"), byNativeName.flatMap { it.translations }.map { it.displayName })
     }
 
     @Test
@@ -70,6 +79,6 @@ class LanguageGroupTest {
     fun `blank query returns everything ungrouped by filter`() {
         val groups = groupVersionsByLanguage(sample, query = "   ")
 
-        assertEquals(sample.size, groups.sumOf { it.versions.size })
+        assertEquals(sample.size, groups.sumOf { it.translations.size })
     }
 }
