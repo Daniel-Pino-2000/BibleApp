@@ -53,18 +53,25 @@ fun VersionPickerView(
 
         if (versions.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("No versions available")
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("No versions available")
+                    Text(
+                        text = "Tap to retry",
+                        modifier = Modifier
+                            .padding(top = 8.dp)
+                            .clickable { bibleViewModel.loadAvailableVersions() }
+                    )
+                }
             }
             return@Column
         }
 
         // Download error banner
         downloadError?.let {
-            Text(
-                text = "Download failed: $it",
-                color = Color.Red,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
+            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
+                Text(text = "Download failed: $it", color = Color.Red)
+                Text(text = "Tap a version below to retry", fontSize = 12.sp, color = Color.Gray)
+            }
         }
 
         LazyColumn {
@@ -76,8 +83,11 @@ fun VersionPickerView(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clickable(enabled = downloadingVersionId == null) {
-                            bibleViewModel.selectVersion(version.id, version.version)
-                            onVersionClicked()
+                            // Only leave this screen once the version is actually ready —
+                            // otherwise the download progress/error never gets seen.
+                            bibleViewModel.selectVersion(version.id, version.version) { success ->
+                                if (success) onVersionClicked()
+                            }
                         }
                         .padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically

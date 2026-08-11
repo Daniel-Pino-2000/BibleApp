@@ -4,6 +4,8 @@
 
     <!-- Internet permission is required to fetch remote data -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Used to check connectivity before starting a bulk version download -->
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
     <application
         android:allowBackup="true"

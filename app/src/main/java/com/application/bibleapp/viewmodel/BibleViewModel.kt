@@ -6,6 +6,7 @@ import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.DEFAULT_VERSION
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.apiSlug
 import com.application.bibleapp.data.remote.BibleVersionDto
 import com.application.bibleapp.data.repository.BibleRepository
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -142,14 +143,19 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     /**
      * If already downloaded, switches immediately.
      * If not, downloads first then switches.
+     * [onFinished] fires with true if the version is now selected (either it
+     * was already downloaded, or the download just succeeded), false on failure —
+     * callers can use this to decide whether it's safe to navigate away.
      */
-    fun selectVersion(versionId: String, versionName: String) {
+    fun selectVersion(versionId: String, versionName: String, onFinished: (success: Boolean) -> Unit = {}) {
         viewModelScope.launch {
             if (repository.isVersionDownloaded(versionId)) {
                 switchToVersion(versionId)
+                onFinished(true)
                 return@launch
             }
-            downloadAndSwitch(versionId, versionName)
+            val success = downloadAndSwitch(versionId, versionName)
+            onFinished(success)
         }
     }
 
@@ -163,12 +169,12 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         loadChapter(_currentBook.value, _currentChapter.value)
     }
 
-    private suspend fun downloadAndSwitch(versionId: String, versionName: String) {
+    private suspend fun downloadAndSwitch(versionId: String, versionName: String): Boolean {
         _downloadingVersionId.value = versionId
         _downloadProgress.value = 0f
         _downloadError.value = null
 
-        val bookNames = BibleBooks.allBooks.map { it.name.lowercase() }
+        val bookNames = BibleBooks.allBooks.map { it.apiSlug() }
         val chapterCounts = BibleBooks.allBooks.map { it.chapters.size }
 
         val result = repository.downloadVersion(
@@ -181,9 +187,15 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
         _downloadingVersionId.value = null
 
-        result.fold(
-            onSuccess = { switchToVersion(versionId) },
-            onFailure = { _downloadError.value = it.message }
+        return result.fold(
+            onSuccess = {
+                switchToVersion(versionId)
+                true
+            },
+            onFailure = {
+                _downloadError.value = it.message ?: "Download failed"
+                false
+            }
         )
     }
 }

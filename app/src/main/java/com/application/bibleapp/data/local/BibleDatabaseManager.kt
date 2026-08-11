@@ -5,18 +5,27 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
-import com.application.bibleapp.data.remote.ApiChapterDto
+import com.application.bibleapp.data.remote.ChapterFetchResult
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
+import com.application.bibleapp.utils.NetworkUtils
 import com.application.bibleapp.utils.TextUtils.normalizeForSearch
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
+import java.io.IOException
+import java.util.concurrent.atomic.AtomicInteger
 
 object BibleDatabaseManager {
 
     private const val DB_NAME = "bible_default.db"
     private const val DB_VERSION = 2 // bump this whenever you change the schema
+    private const val DOWNLOAD_CONCURRENCY = 6 // bounded concurrent chapter fetches
     private var dbInstance: SQLiteDatabase? = null
 
     /**
@@ -111,6 +120,12 @@ object BibleDatabaseManager {
         return exists
     }
 
+    /**
+     * Downloads every chapter for [versionId] and persists it in one transaction.
+     * If any chapter fails to fetch, the whole transaction is rolled back and
+     * [versionId] is left un-downloaded so the user can simply retry — we never
+     * mark a partially-downloaded version as complete.
+     */
     suspend fun downloadAndSaveVersion(
         context: Context,
         versionId: String,
@@ -122,6 +137,10 @@ object BibleDatabaseManager {
     ): Result<Unit> = withContext(Dispatchers.IO) {
         require(bookNames.size == chapterCounts.size)
 
+        if (versionId.isBlank()) {
+            return@withContext Result.failure(IllegalArgumentException("Version id must not be blank"))
+        }
+
         val db = getDatabase(context)
 
         if (isVersionDownloaded(context, versionId)) {
@@ -129,52 +148,91 @@ object BibleDatabaseManager {
             return@withContext Result.success(Unit)
         }
 
+        if (!NetworkUtils.isOnline(context)) {
+            return@withContext Result.failure(IOException("No internet connection. Connect to the internet and try again."))
+        }
+
         val totalChapters = chapterCounts.sum().toFloat()
-        var chaptersProcessed = 0
+        val chaptersFetched = AtomicInteger(0)
+        val downloadSemaphore = Semaphore(DOWNLOAD_CONCURRENCY)
 
         return@withContext try {
             db.beginTransaction()
             try {
-                bookNames.forEachIndexed { bookIndex, bookName ->
+                var failedChapters = 0
+                val sampleErrors = mutableListOf<String>()
+
+                bookNames.forEachIndexed { bookIndex, bookSlug ->
                     val bookId = bookIndex + 1
                     val chapters = chapterCounts[bookIndex]
 
-                    for (chapterNum in 1..chapters) {
-                        val apiChapter: ApiChapterDto? = remote.getChapterDto(
-                            version = versionId,
-                            book = bookName,
-                            chapter = chapterNum
-                        )
+                    val chapterResults = coroutineScope {
+                        (1..chapters).map { chapterNum ->
+                            async {
+                                val result = downloadSemaphore.withPermit {
+                                    remote.getChapterDto(
+                                        version = versionId,
+                                        book = bookSlug,
+                                        chapter = chapterNum
+                                    )
+                                }
+                                onProgress(chaptersFetched.incrementAndGet() / totalChapters)
+                                chapterNum to result
+                            }
+                        }.awaitAll()
+                    }.sortedBy { it.first }
 
-                        apiChapter?.data?.forEach { verseDto ->
-                            db.execSQL(
-                                """
-                                INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
-                                VALUES (?, ?, ?, ?, ?)
-                                """.trimIndent(),
-                                arrayOf(
-                                    versionId,
-                                    bookId,
-                                    chapterNum,
-                                    verseDto.verse.toIntOrNull() ?: 0,
-                                    verseDto.text
-                                )
-                            )
+                    chapterResults.forEach { (chapterNum, result) ->
+                        when (result) {
+                            is ChapterFetchResult.Success -> {
+                                result.chapter.data.forEach { verseDto ->
+                                    db.execSQL(
+                                        """
+                                        INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
+                                        VALUES (?, ?, ?, ?, ?)
+                                        """.trimIndent(),
+                                        arrayOf(
+                                            versionId,
+                                            bookId,
+                                            chapterNum,
+                                            verseDto.verse.toIntOrNull() ?: 0,
+                                            verseDto.text
+                                        )
+                                    )
+                                }
+                            }
+                            is ChapterFetchResult.NotFound -> {
+                                failedChapters++
+                                if (sampleErrors.size < 3) sampleErrors += "$bookSlug $chapterNum: not found"
+                            }
+                            is ChapterFetchResult.Error -> {
+                                failedChapters++
+                                if (sampleErrors.size < 3) sampleErrors += "$bookSlug $chapterNum: ${result.message}"
+                            }
                         }
-
-                        chaptersProcessed++
-                        onProgress(chaptersProcessed / totalChapters)
                     }
                 }
 
-                db.execSQL(
-                    "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
-                    arrayOf(versionId, versionName, System.currentTimeMillis())
-                )
-
-                db.setTransactionSuccessful()
-                Log.d("BibleDB", "Version $versionId saved successfully")
-                Result.success(Unit)
+                if (failedChapters > 0) {
+                    Log.e(
+                        "BibleDB",
+                        "Version $versionId download incomplete: $failedChapters/${totalChapters.toInt()} chapters failed"
+                    )
+                    // Not calling setTransactionSuccessful() rolls back any partial inserts above.
+                    Result.failure(
+                        IOException(
+                            "Failed to download $failedChapters of ${totalChapters.toInt()} chapters (${sampleErrors.joinToString("; ")})"
+                        )
+                    )
+                } else {
+                    db.execSQL(
+                        "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
+                        arrayOf(versionId, versionName, System.currentTimeMillis())
+                    )
+                    db.setTransactionSuccessful()
+                    Log.d("BibleDB", "Version $versionId saved successfully")
+                    Result.success(Unit)
+                }
             } finally {
                 db.endTransaction()
             }
