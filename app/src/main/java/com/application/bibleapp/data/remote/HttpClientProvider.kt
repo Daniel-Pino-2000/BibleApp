@@ -22,6 +22,19 @@ import kotlinx.serialization.json.Json
 object HttpClientProvider {
 
     /**
+     * Shared JSON config — reused both for Ktor's automatic content negotiation
+     * and for manual `json.decodeFromString(...)` calls (e.g. HelloAoBibleDataSource
+     * decoding a manually-buffered response body) so behavior stays consistent.
+     */
+    val json = Json {
+        // If API returns extra fields your models don't have, your app will NOT crash
+        ignoreUnknownKeys = true
+
+        // Allows slightly non-strict JSON (e.g., missing quotes)
+        isLenient = true
+    }
+
+    /**
      * Lazily-initialized Ktor HTTP client.
      *
      * 'by lazy' means:
@@ -36,21 +49,14 @@ object HttpClientProvider {
 
             // Install automatic content negotiation
             install(ContentNegotiation) {
-
                 // Tell Ktor to use kotlinx.serialization for JSON
-                json(
-                    Json {
-                        // If API returns extra fields your models don't have,
-                        // your app will NOT crash
-                        ignoreUnknownKeys = true
-
-                        // Allows slightly non-strict JSON (e.g., missing quotes)
-                        isLenient = true
-                    }
-                )
+                json(json)
             }
 
-            // Prevents a hung/slow request from blocking a bulk download indefinitely
+            // Prevents a hung/slow request from blocking a bulk download indefinitely.
+            // Large single-request downloads (e.g. a translation's complete.json) override
+            // requestTimeoutMillis per-call since a multi-MB body can legitimately take
+            // longer than this default on a slow connection.
             install(HttpTimeout) {
                 requestTimeoutMillis = 15_000
                 connectTimeoutMillis = 10_000
