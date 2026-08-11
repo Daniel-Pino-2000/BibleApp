@@ -8,6 +8,7 @@ import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleVersionDto
+import com.application.bibleapp.data.remote.DownloadSummary
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -49,7 +50,7 @@ class BibleRepository(
         bookNames: List<String>,
         chapterCounts: List<Int>,
         onProgress: (Float) -> Unit = {}
-    ): Result<Unit> = BibleDatabaseManager.downloadAndSaveVersion(
+    ): Result<DownloadSummary> = BibleDatabaseManager.downloadAndSaveVersion(
         context = context,
         versionId = versionId,
         versionName = versionName,

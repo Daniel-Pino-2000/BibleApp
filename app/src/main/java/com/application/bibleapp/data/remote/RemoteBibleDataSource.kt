@@ -4,15 +4,21 @@ import android.util.Log
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import io.ktor.client.HttpClient
 import io.ktor.client.call.body
 import io.ktor.client.request.get
 import io.ktor.http.HttpStatusCode
+import kotlinx.coroutines.delay
 
 class RemoteBibleDataSource(
-    private val baseUrl: String = "https://cdn.jsdelivr.net/gh/wldeh/bible-api"
+    private val baseUrl: String = "https://cdn.jsdelivr.net/gh/wldeh/bible-api",
+    private val client: HttpClient = HttpClientProvider.client
 ) {
 
-    private val client = HttpClientProvider.client
+    companion object {
+        private const val MAX_FETCH_ATTEMPTS = 3
+        private const val RETRY_BASE_DELAY_MS = 400L
+    }
 
     /**
      * Book/version slugs on the wldeh CDN are lowercase alphanumerics (and parentheses
@@ -52,6 +58,13 @@ class RemoteBibleDataSource(
      * Fetches a chapter — used by BibleDatabaseManager during version download.
      * [book] must already be the API slug (see [com.application.bibleapp.data.model.apiSlug]),
      * not a display name.
+     *
+     * A 404 means the chapter genuinely doesn't exist for this version (e.g. an
+     * NT-only translation missing the Old Testament) — that's permanent, so it's
+     * returned immediately as [ChapterFetchResult.NotFound] and never retried.
+     * Transient network failures (DNS blips, timeouts, connection resets, 5xx) are
+     * retried up to [MAX_FETCH_ATTEMPTS] times with exponential backoff before
+     * giving up as [ChapterFetchResult.Error].
      */
     suspend fun getChapterDto(
         version: String,
@@ -63,19 +76,36 @@ class RemoteBibleDataSource(
             Log.e("BibleAPI", message)
             return ChapterFetchResult.Error(message)
         }
-        return try {
-            val url = "$baseUrl/bibles/$version/books/$book/chapters/$chapter.json"
-            Log.d("BibleAPI", "Fetching chapter DTO from $url")
-            val response = client.get(url)
-            when (response.status) {
-                HttpStatusCode.OK -> ChapterFetchResult.Success(response.body())
-                HttpStatusCode.NotFound -> ChapterFetchResult.NotFound
-                else -> ChapterFetchResult.Error("Server returned ${response.status}")
+
+        val url = "$baseUrl/bibles/$version/books/$book/chapters/$chapter.json"
+        var lastError = "Unknown network error"
+
+        for (attempt in 1..MAX_FETCH_ATTEMPTS) {
+            try {
+                Log.d("BibleAPI", "Fetching chapter DTO from $url (attempt $attempt/$MAX_FETCH_ATTEMPTS)")
+                val response = client.get(url)
+                when (response.status) {
+                    HttpStatusCode.OK -> return ChapterFetchResult.Success(response.body())
+                    HttpStatusCode.NotFound -> return ChapterFetchResult.NotFound
+                    else -> lastError = "Server returned ${response.status}"
+                }
+            } catch (e: Exception) {
+                lastError = e.message ?: e::class.simpleName ?: "Unknown network error"
+                if (!isRetriableNetworkError(e)) {
+                    Log.e("BibleAPI", "Non-retriable error fetching $url: ${e::class.simpleName} - $lastError")
+                    return ChapterFetchResult.Error(lastError)
+                }
             }
-        } catch (e: Exception) {
-            Log.e("BibleAPI", "ERROR fetching chapter DTO ($version/$book/$chapter): ${e::class.simpleName} - ${e.message}")
-            ChapterFetchResult.Error(e.message ?: e::class.simpleName ?: "Unknown network error")
+
+            if (attempt < MAX_FETCH_ATTEMPTS) {
+                val backoffMs = RETRY_BASE_DELAY_MS * (1L shl (attempt - 1))
+                Log.w("BibleAPI", "Retrying $url in ${backoffMs}ms (attempt $attempt failed: $lastError)")
+                delay(backoffMs)
+            }
         }
+
+        Log.e("BibleAPI", "Giving up on $url after $MAX_FETCH_ATTEMPTS attempts: $lastError")
+        return ChapterFetchResult.Error(lastError)
     }
 
     /**

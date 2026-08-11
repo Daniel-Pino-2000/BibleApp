@@ -8,10 +8,15 @@ import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.apiSlug
 import com.application.bibleapp.data.remote.BibleVersionDto
+import com.application.bibleapp.data.remote.LanguageGroup
+import com.application.bibleapp.data.remote.groupVersionsByLanguage
 import com.application.bibleapp.data.repository.BibleRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
 class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
@@ -43,6 +48,15 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     private val _versionsError = MutableStateFlow<String?>(null)
     val versionsError: StateFlow<String?> = _versionsError.asStateFlow()
 
+    private val _versionSearchQuery = MutableStateFlow("")
+    val versionSearchQuery: StateFlow<String> = _versionSearchQuery.asStateFlow()
+
+    // Derived from availableVersions + the search query — recomputed locally, no re-fetch.
+    val groupedVersions: StateFlow<List<LanguageGroup>> =
+        combine(_availableVersions, _versionSearchQuery) { versions, query ->
+            groupVersionsByLanguage(versions, query)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     private val _selectedVersion = MutableStateFlow(DEFAULT_VERSION)
     val selectedVersion: StateFlow<SelectedBibleVersion> = _selectedVersion.asStateFlow()
 
@@ -55,6 +69,11 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     private val _downloadError = MutableStateFlow<String?>(null)
     val downloadError: StateFlow<String?> = _downloadError.asStateFlow()
+
+    // Informational (not an error): set when a download succeeded but some content
+    // wasn't available for this version (e.g. an NT-only translation).
+    private val _downloadInfo = MutableStateFlow<String?>(null)
+    val downloadInfo: StateFlow<String?> = _downloadInfo.asStateFlow()
 
     init {
         loadChapter(_currentBook.value, _currentChapter.value)
@@ -126,6 +145,10 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         _searchQuery.value = ""
     }
 
+    fun onVersionSearchQueryChange(query: String) {
+        _versionSearchQuery.value = query
+    }
+
     fun loadAvailableVersions() {
         viewModelScope.launch {
             _isLoadingVersions.value = true
@@ -155,6 +178,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     fun selectVersion(versionId: String, versionName: String, onFinished: (success: Boolean) -> Unit = {}) {
         if (_downloadingVersionId.value != null) return
         _downloadingVersionId.value = versionId
+        _downloadInfo.value = null
 
         viewModelScope.launch {
             if (repository.isVersionDownloaded(versionId)) {
@@ -197,7 +221,11 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         _downloadingVersionId.value = null
 
         return result.fold(
-            onSuccess = {
+            onSuccess = { summary ->
+                if (summary.skippedChapters > 0) {
+                    _downloadInfo.value = "Downloaded ${summary.downloadedChapters} of " +
+                        "${summary.attemptedChapters} chapters — some content isn't available in this version."
+                }
                 switchToVersion(versionId)
                 true
             },

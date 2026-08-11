@@ -11,17 +11,20 @@ class DownloadSummaryTest {
         ChapterDownloadOutcome(bookId, slug, chapter, ChapterFetchResult.Success(ApiChapterDto(emptyList())))
 
     @Test
-    fun `all successes is a complete download with no errors`() {
+    fun `all successes has no skipped or failed chapters`() {
         val outcomes = (1..5).map { success(chapter = it) }
         val summary = summarizeDownload(outcomes)
 
-        assertTrue(summary.isComplete)
-        assertEquals(0, summary.failedCount)
+        assertFalse(summary.hasFailures)
+        assertTrue(summary.hasContent)
+        assertEquals(5, summary.downloadedChapters)
+        assertEquals(0, summary.skippedChapters)
+        assertEquals(0, summary.failedChapters)
         assertTrue(summary.sampleErrors.isEmpty())
     }
 
     @Test
-    fun `any failure marks the download incomplete`() {
+    fun `a genuine 404 is skipped, not a failure`() {
         val outcomes = listOf(
             success(chapter = 1),
             ChapterDownloadOutcome(9, "1samuel", 1, ChapterFetchResult.NotFound),
@@ -29,9 +32,23 @@ class DownloadSummaryTest {
         )
         val summary = summarizeDownload(outcomes)
 
-        assertFalse(summary.isComplete)
-        assertEquals(1, summary.failedCount)
-        assertEquals(listOf("1samuel 1: not found"), summary.sampleErrors)
+        assertFalse("a real 404 must not count as a failure", summary.hasFailures)
+        assertEquals(2, summary.downloadedChapters)
+        assertEquals(1, summary.skippedChapters)
+        assertEquals(0, summary.failedChapters)
+    }
+
+    @Test
+    fun `a network error after retries is a real failure`() {
+        val outcomes = listOf(
+            success(chapter = 1),
+            ChapterDownloadOutcome(1, "genesis", 2, ChapterFetchResult.Error("UnresolvedAddressException"))
+        )
+        val summary = summarizeDownload(outcomes)
+
+        assertTrue(summary.hasFailures)
+        assertEquals(1, summary.failedChapters)
+        assertEquals(listOf("genesis 2: UnresolvedAddressException"), summary.sampleErrors)
     }
 
     @Test
@@ -41,17 +58,20 @@ class DownloadSummaryTest {
         }
         val summary = summarizeDownload(outcomes, maxSamples = 3)
 
-        assertEquals(10, summary.failedCount)
+        assertEquals(10, summary.failedChapters)
         assertEquals(3, summary.sampleErrors.size)
     }
 
     @Test
-    fun `network errors preserve their message for display`() {
+    fun `a version that is entirely 404 has no content but no failures either`() {
         val outcomes = listOf(
-            ChapterDownloadOutcome(1, "genesis", 1, ChapterFetchResult.Error("Unable to resolve host"))
+            ChapterDownloadOutcome(1, "genesis", 1, ChapterFetchResult.NotFound),
+            ChapterDownloadOutcome(1, "genesis", 2, ChapterFetchResult.NotFound)
         )
         val summary = summarizeDownload(outcomes)
 
-        assertEquals(listOf("genesis 1: Unable to resolve host"), summary.sampleErrors)
+        assertFalse(summary.hasContent)
+        assertFalse(summary.hasFailures)
+        assertEquals(2, summary.skippedChapters)
     }
 }

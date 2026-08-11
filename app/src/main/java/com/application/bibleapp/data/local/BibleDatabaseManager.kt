@@ -7,6 +7,7 @@ import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.remote.ChapterDownloadOutcome
 import com.application.bibleapp.data.remote.ChapterFetchResult
+import com.application.bibleapp.data.remote.DownloadSummary
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
 import com.application.bibleapp.data.remote.summarizeDownload
 import com.application.bibleapp.utils.NetworkUtils
@@ -21,6 +22,7 @@ import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.io.IOException
+import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
 
 object BibleDatabaseManager {
@@ -28,6 +30,7 @@ object BibleDatabaseManager {
     private const val DB_NAME = "bible_default.db"
     private const val DB_VERSION = 2 // bump this whenever you change the schema
     private const val DOWNLOAD_CONCURRENCY = 6 // bounded concurrent chapter fetches
+    private const val MAX_CONSECUTIVE_FAILURES = 15 // bail out early on a sustained outage instead of grinding through every remaining chapter
     private var dbInstance: SQLiteDatabase? = null
 
     /**
@@ -138,8 +141,11 @@ object BibleDatabaseManager {
      * The "write phase" below only ever does synchronous DB calls with no
      * suspension points in between, so it can't hop threads mid-transaction.
      *
-     * If any chapter fails to fetch, nothing is written at all and [versionId]
-     * is left un-downloaded so the user can simply retry.
+     * A chapter that genuinely doesn't exist for this version (real 404, e.g. an
+     * NT-only translation) is skipped, not treated as a failure — only chapters
+     * that fail with a real network/server error (after [RemoteBibleDataSource]'s
+     * own retries) fail the whole download, and in that case nothing is written
+     * at all so [versionId] is left un-downloaded for a clean retry.
      */
     suspend fun downloadAndSaveVersion(
         context: Context,
@@ -149,7 +155,7 @@ object BibleDatabaseManager {
         chapterCounts: List<Int>,
         remote: RemoteBibleDataSource,
         onProgress: (Float) -> Unit = {}
-    ): Result<Unit> = withContext(Dispatchers.IO) {
+    ): Result<DownloadSummary> = withContext(Dispatchers.IO) {
         require(bookNames.size == chapterCounts.size)
 
         if (versionId.isBlank()) {
@@ -158,7 +164,7 @@ object BibleDatabaseManager {
 
         if (isVersionDownloaded(context, versionId)) {
             Log.d("BibleDB", "Version $versionId already downloaded, skipping")
-            return@withContext Result.success(Unit)
+            return@withContext Result.success(DownloadSummary(0, 0, 0, emptyList()))
         }
 
         if (!NetworkUtils.isOnline(context)) {
@@ -170,15 +176,35 @@ object BibleDatabaseManager {
         val chaptersFetched = AtomicInteger(0)
         val downloadSemaphore = Semaphore(DOWNLOAD_CONCURRENCY)
 
+        // If we rack up too many consecutive network failures (each of which already
+        // survived its own retries), the connection is probably down for good — stop
+        // burning through the remaining chapters one slow retry-loop at a time.
+        val consecutiveFailures = AtomicInteger(0)
+        val connectionLost = AtomicBoolean(false)
+
         val outcomes: List<ChapterDownloadOutcome> = coroutineScope {
             bookNames.mapIndexed { bookIndex, bookSlug ->
                 val bookId = bookIndex + 1
                 val chapters = chapterCounts[bookIndex]
                 (1..chapters).map { chapterNum ->
                     async {
-                        val result = downloadSemaphore.withPermit {
-                            remote.getChapterDto(version = versionId, book = bookSlug, chapter = chapterNum)
+                        val result = if (connectionLost.get()) {
+                            ChapterFetchResult.Error("Download aborted: connection appears to be down")
+                        } else {
+                            downloadSemaphore.withPermit {
+                                remote.getChapterDto(version = versionId, book = bookSlug, chapter = chapterNum)
+                            }
                         }
+
+                        when (result) {
+                            is ChapterFetchResult.Error -> {
+                                if (consecutiveFailures.incrementAndGet() >= MAX_CONSECUTIVE_FAILURES) {
+                                    connectionLost.set(true)
+                                }
+                            }
+                            is ChapterFetchResult.Success, is ChapterFetchResult.NotFound -> consecutiveFailures.set(0)
+                        }
+
                         onProgress(chaptersFetched.incrementAndGet() / totalChapters)
                         ChapterDownloadOutcome(bookId, bookSlug, chapterNum, result)
                     }
@@ -187,16 +213,30 @@ object BibleDatabaseManager {
         }
 
         val summary = summarizeDownload(outcomes)
-        if (!summary.isComplete) {
+
+        if (summary.hasFailures) {
             Log.e(
                 "BibleDB",
-                "Version $versionId download incomplete: ${summary.failedCount}/${totalChapters.toInt()} chapters failed"
+                "Version $versionId download failed: ${summary.failedChapters} network error(s) after retries"
             )
             return@withContext Result.failure(
                 IOException(
-                    "Failed to download ${summary.failedCount} of ${totalChapters.toInt()} chapters " +
-                        "(${summary.sampleErrors.joinToString("; ")})"
+                    "Network error: couldn't download ${summary.failedChapters} of ${totalChapters.toInt()} chapters " +
+                        "after retrying (${summary.sampleErrors.joinToString("; ")})"
                 )
+            )
+        }
+
+        if (!summary.hasContent) {
+            Log.e("BibleDB", "Version $versionId has no downloadable content (all ${summary.skippedChapters} chapters 404'd)")
+            return@withContext Result.failure(IOException("No content is available for this version."))
+        }
+
+        if (summary.skippedChapters > 0) {
+            Log.d(
+                "BibleDB",
+                "Version $versionId is a partial translation: ${summary.downloadedChapters} downloaded, " +
+                    "${summary.skippedChapters} not available"
             )
         }
 
@@ -206,8 +246,8 @@ object BibleDatabaseManager {
             db.beginTransaction()
             try {
                 outcomes.forEach { outcome ->
-                    val chapter = (outcome.result as ChapterFetchResult.Success).chapter
-                    chapter.data.forEach { verseDto ->
+                    val success = outcome.result as? ChapterFetchResult.Success ?: return@forEach
+                    success.chapter.data.forEach { verseDto ->
                         db.execSQL(
                             """
                             INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
@@ -229,8 +269,12 @@ object BibleDatabaseManager {
                     arrayOf(versionId, versionName, System.currentTimeMillis())
                 )
                 db.setTransactionSuccessful()
-                Log.d("BibleDB", "Version $versionId saved successfully")
-                Result.success(Unit)
+                Log.d(
+                    "BibleDB",
+                    "Version $versionId saved successfully (${summary.downloadedChapters} chapters, " +
+                        "${summary.skippedChapters} unavailable)"
+                )
+                Result.success(summary)
             } finally {
                 db.endTransaction()
             }

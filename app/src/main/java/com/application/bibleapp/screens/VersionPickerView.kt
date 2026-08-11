@@ -1,18 +1,23 @@
 package com.application.bibleapp.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.application.bibleapp.viewmodel.BibleViewModel
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun VersionPickerView(
     bibleViewModel: BibleViewModel,
@@ -20,12 +25,15 @@ fun VersionPickerView(
     onVersionClicked: () -> Unit
 ) {
     val versions by bibleViewModel.availableVersions.collectAsState()
+    val groupedVersions by bibleViewModel.groupedVersions.collectAsState()
+    val searchQuery by bibleViewModel.versionSearchQuery.collectAsState()
     val isLoading by bibleViewModel.isLoadingVersions.collectAsState()
     val error by bibleViewModel.versionsError.collectAsState()
     val selectedVersion by bibleViewModel.selectedVersion.collectAsState()
     val downloadingVersionId by bibleViewModel.downloadingVersionId.collectAsState()
     val downloadProgress by bibleViewModel.downloadProgress.collectAsState()
     val downloadError by bibleViewModel.downloadError.collectAsState()
+    val downloadInfo by bibleViewModel.downloadInfo.collectAsState()
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -66,6 +74,17 @@ fun VersionPickerView(
             return@Column
         }
 
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = bibleViewModel::onVersionSearchQueryChange,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            placeholder = { Text("Search by language or version") },
+            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+            singleLine = true
+        )
+
         // Download error banner
         downloadError?.let {
             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
@@ -74,50 +93,84 @@ fun VersionPickerView(
             }
         }
 
+        // Download info banner (success, but some content wasn't available for this version)
+        downloadInfo?.let {
+            Text(
+                text = it,
+                color = MaterialTheme.colorScheme.primary,
+                fontSize = 12.sp,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+            )
+        }
+
+        if (groupedVersions.isEmpty()) {
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Text("No versions match \"$searchQuery\"")
+            }
+            return@Column
+        }
+
         LazyColumn {
-            items(versions) { version ->
-                val isSelected = version.id == selectedVersion.id
-                val isDownloading = version.id == downloadingVersionId
-
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable(enabled = downloadingVersionId == null) {
-                            // Only leave this screen once the version is actually ready —
-                            // otherwise the download progress/error never gets seen.
-                            bibleViewModel.selectVersion(version.id, version.version) { success ->
-                                if (success) onVersionClicked()
-                            }
-                        }
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(text = "${version.version} - ${version.language.name}")
-                        if (isDownloading) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            LinearProgressIndicator(
-                                progress = { downloadProgress },
-                                modifier = Modifier.fillMaxWidth()
-                            )
-                            Text(
-                                text = "${(downloadProgress * 100).toInt()}%",
-                                fontSize = 12.sp,
-                                color = Color.Gray
-                            )
-                        }
-                    }
-
-                    if (isSelected) {
+            groupedVersions.forEach { group ->
+                stickyHeader {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                         Text(
-                            text = "✓",
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(start = 8.dp)
+                            text = group.languageName,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
                         )
                     }
                 }
 
-                HorizontalDivider()
+                items(group.versions, key = { it.id }) { version ->
+                    val isSelected = version.id == selectedVersion.id
+                    val isDownloading = version.id == downloadingVersionId
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = downloadingVersionId == null) {
+                                // Only leave this screen once the version is actually ready —
+                                // otherwise the download progress/error never gets seen.
+                                bibleViewModel.selectVersion(version.id, version.version) { success ->
+                                    if (success) onVersionClicked()
+                                }
+                            }
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = version.version)
+                            version.description?.takeIf { it.isNotBlank() }?.let { description ->
+                                Text(text = description, fontSize = 12.sp, color = Color.Gray)
+                            }
+                            if (isDownloading) {
+                                Spacer(modifier = Modifier.height(4.dp))
+                                LinearProgressIndicator(
+                                    progress = { downloadProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                Text(
+                                    text = "${(downloadProgress * 100).toInt()}%",
+                                    fontSize = 12.sp,
+                                    color = Color.Gray
+                                )
+                            }
+                        }
+
+                        if (isSelected) {
+                            Text(
+                                text = "✓",
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.padding(start = 8.dp)
+                            )
+                        }
+                    }
+
+                    HorizontalDivider()
+                }
             }
         }
     }

@@ -11,26 +11,50 @@ data class ChapterDownloadOutcome(
     val result: ChapterFetchResult
 )
 
+/**
+ * [downloadedChapters] were fetched successfully and are ready to write.
+ * [skippedChapters] genuinely don't exist for this version (real 404s — e.g. an
+ * NT-only translation missing the Old Testament); that's absent content, not a failure.
+ * [failedChapters] are real network/server errors that survived retries — these are
+ * the only ones that should fail the whole download.
+ */
 data class DownloadSummary(
-    val failedCount: Int,
+    val downloadedChapters: Int,
+    val skippedChapters: Int,
+    val failedChapters: Int,
     val sampleErrors: List<String>
 ) {
-    val isComplete: Boolean get() = failedCount == 0
+    val attemptedChapters: Int get() = downloadedChapters + skippedChapters + failedChapters
+    val hasFailures: Boolean get() = failedChapters > 0
+    val hasContent: Boolean get() = downloadedChapters > 0
 }
 
 /**
- * Reduces raw fetch outcomes to a pass/fail summary with a few sample error
- * messages for display, without touching the database or the network.
+ * Reduces raw fetch outcomes to a downloaded/skipped/failed summary with a few
+ * sample error messages for display, without touching the database or the network.
  */
 fun summarizeDownload(outcomes: List<ChapterDownloadOutcome>, maxSamples: Int = 3): DownloadSummary {
-    val failures = outcomes.filter { it.result !is ChapterFetchResult.Success }
-    val samples = failures.take(maxSamples).map { outcome ->
-        val reason = when (val result = outcome.result) {
-            is ChapterFetchResult.NotFound -> "not found"
-            is ChapterFetchResult.Error -> result.message
-            is ChapterFetchResult.Success -> "" // unreachable: filtered out above
+    var downloaded = 0
+    var skipped = 0
+    val failures = mutableListOf<ChapterDownloadOutcome>()
+
+    outcomes.forEach { outcome ->
+        when (outcome.result) {
+            is ChapterFetchResult.Success -> downloaded++
+            is ChapterFetchResult.NotFound -> skipped++
+            is ChapterFetchResult.Error -> failures += outcome
         }
-        "${outcome.bookSlug} ${outcome.chapterNumber}: $reason"
     }
-    return DownloadSummary(failedCount = failures.size, sampleErrors = samples)
+
+    val samples = failures.take(maxSamples).map { outcome ->
+        val message = (outcome.result as ChapterFetchResult.Error).message
+        "${outcome.bookSlug} ${outcome.chapterNumber}: $message"
+    }
+
+    return DownloadSummary(
+        downloadedChapters = downloaded,
+        skippedChapters = skipped,
+        failedChapters = failures.size,
+        sampleErrors = samples
+    )
 }
