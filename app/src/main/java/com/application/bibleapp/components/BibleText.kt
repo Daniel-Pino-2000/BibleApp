@@ -11,11 +11,18 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.ParagraphStyle
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.application.bibleapp.data.model.VerseRun
 import com.application.bibleapp.data.model.VerseUI
+
+/** Indentation per poem nesting level — enough to read as a poetry line, not just a wrapped paragraph. */
+private val POEM_INDENT_STEP = 20.sp
 
 @Composable
 fun BibleText(
@@ -48,21 +55,45 @@ fun BibleText(
     }
 }
 
-/** Builds "<number> <text>" with words-of-Jesus runs colored, falling back to plain text for legacy rows. */
+/**
+ * Builds "<number> <text>" with words-of-Jesus runs colored and poem lines broken
+ * onto their own indented line, falling back to plain text for legacy rows.
+ *
+ * Each poem-tagged run (or any run with an explicit line break before it) gets its
+ * own [ParagraphStyle] — Compose treats a ParagraphStyle span as a hard paragraph
+ * break, so this both breaks the line and applies the indent in one step. A run
+ * with no poem level and no line break just continues the current paragraph,
+ * space-separated, same as plain prose.
+ */
 private fun verseAnnotatedString(verse: VerseUI, wordsOfJesusColor: Color): AnnotatedString {
     val runs = verse.richContent?.runs
     if (runs.isNullOrEmpty()) {
         return AnnotatedString("${verse.verse} ${verse.text}")
     }
     return buildAnnotatedString {
-        append("${verse.verse} ")
         runs.forEachIndexed { index, run ->
-            if (index > 0) append(" ")
-            if (run.isWordsOfJesus) {
-                withStyle(SpanStyle(color = wordsOfJesusColor)) { append(run.text) }
+            val numberPrefix = if (index == 0) "${verse.verse} " else ""
+            val startsNewLine = run.poemLevel != null || (run.lineBreakBefore && index > 0)
+
+            if (startsNewLine) {
+                val indent = POEM_INDENT_STEP * (run.poemLevel ?: 0)
+                withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = indent, restLine = indent))) {
+                    append(numberPrefix)
+                    appendRun(run, wordsOfJesusColor)
+                }
             } else {
-                append(run.text)
+                if (index > 0) append(" ")
+                append(numberPrefix)
+                appendRun(run, wordsOfJesusColor)
             }
         }
+    }
+}
+
+private fun AnnotatedString.Builder.appendRun(run: VerseRun, wordsOfJesusColor: Color) {
+    if (run.isWordsOfJesus) {
+        withStyle(SpanStyle(color = wordsOfJesusColor)) { append(run.text) }
+    } else {
+        append(run.text)
     }
 }
