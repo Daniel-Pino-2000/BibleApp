@@ -8,5 +8,6 @@ data class VerseUI(
     val verse: Int?,
     val isUserVerse: Boolean = false,
     val isHighlighted: Boolean = false,
-    val highlightColor: Int = 0x00000000
+    val highlightColor: Int = 0x00000000,
+    val richContent: StoredVerseContent? = null // null unless the reading screen needs rich rendering
 )

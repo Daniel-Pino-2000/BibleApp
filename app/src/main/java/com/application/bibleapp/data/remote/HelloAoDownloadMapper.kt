@@ -35,12 +35,13 @@ object HelloAoDownloadMapper {
             book.chapters.forEach { chapterEntry ->
                 chapterCount++
                 val chapterNumber = chapterEntry.chapter.number
-                HelloAoContentParser.extractVerseTexts(chapterEntry.chapter.content).forEach { (verseNumber, text) ->
+                HelloAoContentParser.extractVerses(chapterEntry.chapter.content).forEach { parsedVerse ->
                     verses += MappedVerse(
                         bookId = book.order,
                         chapter = chapterNumber,
-                        verse = verseNumber,
-                        text = text
+                        verse = parsedVerse.number,
+                        text = parsedVerse.plainText,
+                        richContent = parsedVerse.richContent
                     )
                 }
             }

@@ -5,6 +5,8 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.decodeVerseContentOrNull
+import com.application.bibleapp.data.model.encodeToJson
 import com.application.bibleapp.data.remote.BibleRemoteDataSource
 import com.application.bibleapp.data.remote.DownloadedTranslation
 import com.application.bibleapp.utils.NetworkUtils
@@ -90,7 +92,10 @@ object BibleDatabaseManager {
             """.trimIndent()
         )
 
-        // Separate table for downloaded verses — never mixed with bundled KJV
+        // Separate table for downloaded verses — never mixed with bundled KJV.
+        // rich_content is nullable JSON (StoredVerseContent) alongside plain `text` —
+        // `text` stays plain on purpose so search's GROUP_CONCAT/LIKE keeps working
+        // unchanged; only the reading screen looks at rich_content.
         db.execSQL(
             """
             CREATE TABLE IF NOT EXISTS downloaded_verses (
@@ -100,12 +105,30 @@ object BibleDatabaseManager {
                 chapter INTEGER NOT NULL,
                 verse INTEGER NOT NULL,
                 text TEXT NOT NULL,
+                rich_content TEXT,
                 UNIQUE(version, book_id, chapter, verse)
             )
             """.trimIndent()
         )
+        addColumnIfMissing(db, "downloaded_verses", "rich_content", "TEXT")
 
         Log.d("BibleDB", "Downloaded versions/verses tables ready")
+    }
+
+    /**
+     * SQLite has no `ADD COLUMN IF NOT EXISTS`; this makes adding a column to an
+     * existing installation idempotent without a full migration framework. Safe to
+     * call every time the DB opens — a no-op once the column exists.
+     */
+    private fun addColumnIfMissing(db: SQLiteDatabase, table: String, column: String, definition: String) {
+        val columnExists = db.rawQuery("PRAGMA table_info($table)", null).use { cursor ->
+            val nameIndex = cursor.getColumnIndex("name")
+            generateSequence { if (cursor.moveToNext()) cursor.getString(nameIndex) else null }.any { it == column }
+        }
+        if (!columnExists) {
+            db.execSQL("ALTER TABLE $table ADD COLUMN $column $definition")
+            Log.d("BibleDB", "Added missing column $table.$column")
+        }
     }
 
     fun isVersionDownloaded(context: Context, versionId: String): Boolean {
@@ -188,10 +211,17 @@ object BibleDatabaseManager {
                 downloaded.verses.forEach { verse ->
                     db.execSQL(
                         """
-                        INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
-                        VALUES (?, ?, ?, ?, ?)
+                        INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text, rich_content)
+                        VALUES (?, ?, ?, ?, ?, ?)
                         """.trimIndent(),
-                        arrayOf(translationId, verse.bookId, verse.chapter, verse.verse, verse.text)
+                        arrayOf(
+                            translationId,
+                            verse.bookId,
+                            verse.chapter,
+                            verse.verse,
+                            verse.text,
+                            verse.richContent?.encodeToJson()
+                        )
                     )
                 }
 
@@ -224,14 +254,17 @@ object BibleDatabaseManager {
 
     /**
      * Routes to KJV_verses for "kjv", downloaded_verses for everything else.
+     * KJV_verses has no rich_content column (it's a separate bundled schema, never
+     * touched by the helloao download path), so it's selected as a literal NULL to
+     * keep the cursor shape identical either way.
      */
     fun getVersesByChapter(context: Context, bookId: Int, chNum: Int, version: String): List<BibleVerse> {
         val db = getDatabase(context)
 
-        val (table, versionClause) = if (version == "kjv") {
-            "KJV_verses" to ""                          // KJV has no version column
+        val (table, richContentColumn, versionClause) = if (version == "kjv") {
+            Triple("KJV_verses", "NULL", "")
         } else {
-            "downloaded_verses" to "AND version = ?"
+            Triple("downloaded_verses", "rich_content", "AND version = ?")
         }
 
         val args = if (version == "kjv") {
@@ -241,7 +274,8 @@ object BibleDatabaseManager {
         }
 
         val cursor = db.rawQuery(
-            "SELECT id, text, book_id, chapter, verse FROM $table WHERE book_id = ? AND chapter = ? $versionClause ORDER BY verse",
+            "SELECT id, text, $richContentColumn, book_id, chapter, verse FROM $table " +
+                "WHERE book_id = ? AND chapter = ? $versionClause ORDER BY verse",
             args
         )
 
@@ -251,9 +285,10 @@ object BibleDatabaseManager {
                 BibleVerse(
                     id = cursor.getInt(0),
                     text = cursor.getString(1),
-                    bookId = cursor.getInt(2),
-                    chapter = cursor.getInt(3),
-                    verse = cursor.getInt(4)
+                    richContent = decodeVerseContentOrNull(if (cursor.isNull(2)) null else cursor.getString(2)),
+                    bookId = cursor.getInt(3),
+                    chapter = cursor.getInt(4),
+                    verse = cursor.getInt(5)
                 )
             )
         }

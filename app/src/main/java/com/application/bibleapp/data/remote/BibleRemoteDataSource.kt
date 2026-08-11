@@ -1,17 +1,22 @@
 package com.application.bibleapp.data.remote
 
 import com.application.bibleapp.data.model.BibleTranslation
+import com.application.bibleapp.data.model.StoredVerseContent
 
 /**
  * A single verse ready to persist, already mapped onto the app's internal
  * 1–66 canonical book numbering — source-specific book codes/slugs never
- * leave the data source implementation.
+ * leave the data source implementation. [richContent] is null for a source
+ * that can't offer formatting beyond plain text; [text] is always plain and
+ * always populated, so callers that don't care about formatting never need
+ * to check [richContent].
  */
 data class MappedVerse(
     val bookId: Int,
     val chapter: Int,
     val verse: Int,
-    val text: String
+    val text: String,
+    val richContent: StoredVerseContent? = null
 )
 
 /**

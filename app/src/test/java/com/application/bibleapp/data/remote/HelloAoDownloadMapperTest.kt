@@ -94,9 +94,23 @@ class HelloAoDownloadMapperTest {
 
         assertEquals(2, result.downloadedChapterCount)
         assertEquals(3, result.verses.size)
-        assertEquals(
-            MappedVerse(bookId = 1, chapter = 2, verse = 1, text = "Chapter two verse one"),
-            result.verses.last()
+        val last = result.verses.last()
+        assertEquals(1, last.bookId)
+        assertEquals(2, last.chapter)
+        assertEquals(1, last.verse)
+        assertEquals("Chapter two verse one", last.text)
+    }
+
+    @Test
+    fun `rich content from the parser is carried through to MappedVerse`() {
+        val dto = translation(
+            book("GEN", order = 1, chapters = listOf(chapter(1, 1 to "In the beginning...")))
         )
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        val richContent = result.verses.single().richContent
+        assertEquals(1, richContent?.runs?.size)
+        assertEquals("In the beginning...", richContent?.runs?.first()?.text)
     }
 }

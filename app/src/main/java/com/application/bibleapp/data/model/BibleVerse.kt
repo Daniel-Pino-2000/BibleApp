@@ -7,7 +7,8 @@ data class BibleVerse(
     val text: String,
     val bookId: Int,
     val chapter: Int,
-    val verse: Int
+    val verse: Int,
+    val richContent: StoredVerseContent? = null // null for the bundled KJV table and pre-rich-content downloads
 )
 
 /**
@@ -17,6 +18,7 @@ data class BibleVerse(
 fun BibleVerse.toUI(): VerseUI = VerseUI(
     id = id,
     text = text,
+    richContent = richContent,
     bookId = bookId,
     chapter = chapter,
     verse = verse,
