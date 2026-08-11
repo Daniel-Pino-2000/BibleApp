@@ -13,12 +13,6 @@ data class Chapter(
     val verses: Int
 )
 
-/**
- * Slug the wldeh Bible API expects in book URLs, e.g. "1 Samuel" -> "1samuel",
- * "Song of Solomon" -> "songofsolomon" (lowercase, spaces stripped).
- */
-fun BibleBook.apiSlug(): String = name.lowercase().replace(" ", "")
-
 
 
 /**
