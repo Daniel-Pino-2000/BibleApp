@@ -5,8 +5,10 @@ import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.remote.ChapterDownloadOutcome
 import com.application.bibleapp.data.remote.ChapterFetchResult
 import com.application.bibleapp.data.remote.RemoteBibleDataSource
+import com.application.bibleapp.data.remote.summarizeDownload
 import com.application.bibleapp.utils.NetworkUtils
 import com.application.bibleapp.utils.TextUtils.normalizeForSearch
 import kotlinx.coroutines.Dispatchers
@@ -122,9 +124,22 @@ object BibleDatabaseManager {
 
     /**
      * Downloads every chapter for [versionId] and persists it in one transaction.
-     * If any chapter fails to fetch, the whole transaction is rolled back and
-     * [versionId] is left un-downloaded so the user can simply retry — we never
-     * mark a partially-downloaded version as complete.
+     *
+     * IMPORTANT: all network I/O happens in the "fetch phase" below, before any
+     * transaction is opened. `SQLiteDatabase` ties an open transaction to the
+     * calling thread via a thread-local session; `Dispatchers.IO` is free to
+     * resume a coroutine on a *different* pool thread after it suspends on I/O,
+     * so awaiting network calls inside `beginTransaction()/endTransaction()`
+     * intermittently makes a later `execSQL`/`endTransaction()` run on a thread
+     * that has no record of the transaction, throwing
+     * "Cannot perform this operation because there is no current transaction"
+     * (and, since the connection stays checked out the whole time, starves any
+     * other caller trying to touch the DB — including ones on the main thread).
+     * The "write phase" below only ever does synchronous DB calls with no
+     * suspension points in between, so it can't hop threads mid-transaction.
+     *
+     * If any chapter fails to fetch, nothing is written at all and [versionId]
+     * is left un-downloaded so the user can simply retry.
      */
     suspend fun downloadAndSaveVersion(
         context: Context,
@@ -141,8 +156,6 @@ object BibleDatabaseManager {
             return@withContext Result.failure(IllegalArgumentException("Version id must not be blank"))
         }
 
-        val db = getDatabase(context)
-
         if (isVersionDownloaded(context, versionId)) {
             Log.d("BibleDB", "Version $versionId already downloaded, skipping")
             return@withContext Result.success(Unit)
@@ -152,87 +165,72 @@ object BibleDatabaseManager {
             return@withContext Result.failure(IOException("No internet connection. Connect to the internet and try again."))
         }
 
+        // --- Fetch phase: network only, no transaction open. ---
         val totalChapters = chapterCounts.sum().toFloat()
         val chaptersFetched = AtomicInteger(0)
         val downloadSemaphore = Semaphore(DOWNLOAD_CONCURRENCY)
 
-        return@withContext try {
+        val outcomes: List<ChapterDownloadOutcome> = coroutineScope {
+            bookNames.mapIndexed { bookIndex, bookSlug ->
+                val bookId = bookIndex + 1
+                val chapters = chapterCounts[bookIndex]
+                (1..chapters).map { chapterNum ->
+                    async {
+                        val result = downloadSemaphore.withPermit {
+                            remote.getChapterDto(version = versionId, book = bookSlug, chapter = chapterNum)
+                        }
+                        onProgress(chaptersFetched.incrementAndGet() / totalChapters)
+                        ChapterDownloadOutcome(bookId, bookSlug, chapterNum, result)
+                    }
+                }
+            }.flatten().awaitAll()
+        }
+
+        val summary = summarizeDownload(outcomes)
+        if (!summary.isComplete) {
+            Log.e(
+                "BibleDB",
+                "Version $versionId download incomplete: ${summary.failedCount}/${totalChapters.toInt()} chapters failed"
+            )
+            return@withContext Result.failure(
+                IOException(
+                    "Failed to download ${summary.failedCount} of ${totalChapters.toInt()} chapters " +
+                        "(${summary.sampleErrors.joinToString("; ")})"
+                )
+            )
+        }
+
+        // --- Write phase: synchronous DB calls only, no suspension points. ---
+        val db = getDatabase(context)
+        try {
             db.beginTransaction()
             try {
-                var failedChapters = 0
-                val sampleErrors = mutableListOf<String>()
-
-                bookNames.forEachIndexed { bookIndex, bookSlug ->
-                    val bookId = bookIndex + 1
-                    val chapters = chapterCounts[bookIndex]
-
-                    val chapterResults = coroutineScope {
-                        (1..chapters).map { chapterNum ->
-                            async {
-                                val result = downloadSemaphore.withPermit {
-                                    remote.getChapterDto(
-                                        version = versionId,
-                                        book = bookSlug,
-                                        chapter = chapterNum
-                                    )
-                                }
-                                onProgress(chaptersFetched.incrementAndGet() / totalChapters)
-                                chapterNum to result
-                            }
-                        }.awaitAll()
-                    }.sortedBy { it.first }
-
-                    chapterResults.forEach { (chapterNum, result) ->
-                        when (result) {
-                            is ChapterFetchResult.Success -> {
-                                result.chapter.data.forEach { verseDto ->
-                                    db.execSQL(
-                                        """
-                                        INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
-                                        VALUES (?, ?, ?, ?, ?)
-                                        """.trimIndent(),
-                                        arrayOf(
-                                            versionId,
-                                            bookId,
-                                            chapterNum,
-                                            verseDto.verse.toIntOrNull() ?: 0,
-                                            verseDto.text
-                                        )
-                                    )
-                                }
-                            }
-                            is ChapterFetchResult.NotFound -> {
-                                failedChapters++
-                                if (sampleErrors.size < 3) sampleErrors += "$bookSlug $chapterNum: not found"
-                            }
-                            is ChapterFetchResult.Error -> {
-                                failedChapters++
-                                if (sampleErrors.size < 3) sampleErrors += "$bookSlug $chapterNum: ${result.message}"
-                            }
-                        }
+                outcomes.forEach { outcome ->
+                    val chapter = (outcome.result as ChapterFetchResult.Success).chapter
+                    chapter.data.forEach { verseDto ->
+                        db.execSQL(
+                            """
+                            INSERT OR REPLACE INTO downloaded_verses (version, book_id, chapter, verse, text)
+                            VALUES (?, ?, ?, ?, ?)
+                            """.trimIndent(),
+                            arrayOf(
+                                versionId,
+                                outcome.bookId,
+                                outcome.chapterNumber,
+                                verseDto.verse.toIntOrNull() ?: 0,
+                                verseDto.text
+                            )
+                        )
                     }
                 }
 
-                if (failedChapters > 0) {
-                    Log.e(
-                        "BibleDB",
-                        "Version $versionId download incomplete: $failedChapters/${totalChapters.toInt()} chapters failed"
-                    )
-                    // Not calling setTransactionSuccessful() rolls back any partial inserts above.
-                    Result.failure(
-                        IOException(
-                            "Failed to download $failedChapters of ${totalChapters.toInt()} chapters (${sampleErrors.joinToString("; ")})"
-                        )
-                    )
-                } else {
-                    db.execSQL(
-                        "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
-                        arrayOf(versionId, versionName, System.currentTimeMillis())
-                    )
-                    db.setTransactionSuccessful()
-                    Log.d("BibleDB", "Version $versionId saved successfully")
-                    Result.success(Unit)
-                }
+                db.execSQL(
+                    "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
+                    arrayOf(versionId, versionName, System.currentTimeMillis())
+                )
+                db.setTransactionSuccessful()
+                Log.d("BibleDB", "Version $versionId saved successfully")
+                Result.success(Unit)
             } finally {
                 db.endTransaction()
             }

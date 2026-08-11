@@ -32,8 +32,11 @@ class BibleRepository(
 
     suspend fun getAllVersions(): List<BibleVersionDto> = remote.getAvailableVersions()
 
-    fun isVersionDownloaded(versionId: String): Boolean =
+    // BibleDatabaseManager.isVersionDownloaded runs a blocking SQLite query; keep it off
+    // whatever dispatcher the caller happens to be on (viewModelScope defaults to Main).
+    suspend fun isVersionDownloaded(versionId: String): Boolean = withContext(Dispatchers.IO) {
         BibleDatabaseManager.isVersionDownloaded(context, versionId)
+    }
 
     /**
      * Downloads [versionId] and persists it to the local DB.

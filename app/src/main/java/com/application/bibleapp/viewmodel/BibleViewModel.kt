@@ -146,10 +146,19 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
      * [onFinished] fires with true if the version is now selected (either it
      * was already downloaded, or the download just succeeded), false on failure —
      * callers can use this to decide whether it's safe to navigate away.
+     *
+     * Guards against re-entrancy: the UI already disables the row while a
+     * download is in flight, but this check is synchronous (set before the
+     * coroutine is even launched) so a double-tap that beats recomposition
+     * can't start a second overlapping download of the same DB connection.
      */
     fun selectVersion(versionId: String, versionName: String, onFinished: (success: Boolean) -> Unit = {}) {
+        if (_downloadingVersionId.value != null) return
+        _downloadingVersionId.value = versionId
+
         viewModelScope.launch {
             if (repository.isVersionDownloaded(versionId)) {
+                _downloadingVersionId.value = null
                 switchToVersion(versionId)
                 onFinished(true)
                 return@launch
