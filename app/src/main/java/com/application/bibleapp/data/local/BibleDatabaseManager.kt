@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.decodeVerseContentOrNull
@@ -92,6 +93,10 @@ object BibleDatabaseManager {
             )
             """.trimIndent()
         )
+        // Existing rows predate this column and default to 1 ("plain text only") —
+        // that's exactly what they are, since rich_content/footnotes didn't exist yet
+        // when they were downloaded. New downloads always stamp the current version.
+        addColumnIfMissing(db, "downloaded_versions", "schema_version", "INTEGER NOT NULL DEFAULT 1")
 
         // Separate table for downloaded verses — never mixed with bundled KJV.
         // rich_content is nullable JSON (StoredVerseContent) alongside plain `text` —
@@ -160,6 +165,34 @@ object BibleDatabaseManager {
         val exists = cursor.moveToFirst()
         cursor.close()
         return exists
+    }
+
+    /** All locally downloaded (non-bundled) versions, for badging the picker without one query per row. */
+    fun getDownloadedVersions(context: Context): List<DownloadedVersionInfo> {
+        val db = getDatabase(context)
+        val results = mutableListOf<DownloadedVersionInfo>()
+        val cursor = db.rawQuery("SELECT id, schema_version FROM downloaded_versions", null)
+        cursor.use {
+            while (it.moveToNext()) {
+                results.add(DownloadedVersionInfo(id = it.getString(0), schemaVersion = it.getInt(1)))
+            }
+        }
+        return results
+    }
+
+    /** Wipes a downloaded translation so it can be cleanly re-fetched (e.g. to pick up a newer schema). */
+    fun deleteDownloadedVersion(context: Context, versionId: String) {
+        if (versionId == "kjv") return // bundled, never deletable
+        val db = getDatabase(context)
+        db.beginTransaction()
+        try {
+            db.execSQL("DELETE FROM downloaded_verses WHERE version = ?", arrayOf(versionId))
+            db.execSQL("DELETE FROM downloaded_footnotes WHERE version = ?", arrayOf(versionId))
+            db.execSQL("DELETE FROM downloaded_versions WHERE id = ?", arrayOf(versionId))
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     /**
@@ -263,8 +296,13 @@ object BibleDatabaseManager {
                 }
 
                 db.execSQL(
-                    "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at) VALUES (?, ?, ?)",
-                    arrayOf(translationId, downloaded.translationName, System.currentTimeMillis())
+                    "INSERT OR REPLACE INTO downloaded_versions (id, name, downloaded_at, schema_version) VALUES (?, ?, ?, ?)",
+                    arrayOf(
+                        translationId,
+                        downloaded.translationName,
+                        System.currentTimeMillis(),
+                        DownloadedVersionInfo.CURRENT_DOWNLOAD_SCHEMA_VERSION
+                    )
                 )
                 db.setTransactionSuccessful()
                 Log.d(

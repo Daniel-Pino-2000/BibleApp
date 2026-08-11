@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DEFAULT_VERSION
+import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseUI
@@ -67,6 +68,11 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     private val _selectedVersion = MutableStateFlow(DEFAULT_VERSION)
     val selectedVersion: StateFlow<SelectedBibleVersion> = _selectedVersion.asStateFlow()
 
+    // Locally downloaded versions, keyed by id, so the picker can badge "downloaded" /
+    // "update available" without a DB query per row. Refreshed after every download.
+    private val _downloadedVersions = MutableStateFlow<Map<String, DownloadedVersionInfo>>(emptyMap())
+    val downloadedVersions: StateFlow<Map<String, DownloadedVersionInfo>> = _downloadedVersions.asStateFlow()
+
     // Download state
     private val _downloadingVersionId = MutableStateFlow<String?>(null)
     val downloadingVersionId: StateFlow<String?> = _downloadingVersionId.asStateFlow()
@@ -83,8 +89,16 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     val downloadInfo: StateFlow<String?> = _downloadInfo.asStateFlow()
 
     init {
-        loadChapter(_currentBook.value, _currentChapter.value)
+        // The last version the user picked is persisted across process restarts. Only
+        // trust it if it's still actually downloaded — local data may have been cleared.
+        viewModelScope.launch {
+            val persistedId = repository.loadSelectedVersion()
+            val isAvailable = persistedId == DEFAULT_VERSION.id || repository.isVersionDownloaded(persistedId)
+            _selectedVersion.value = if (isAvailable) SelectedBibleVersion(id = persistedId) else DEFAULT_VERSION
+            loadChapter(_currentBook.value, _currentChapter.value)
+        }
         loadAvailableVersions()
+        refreshDownloadedVersions()
     }
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
@@ -178,11 +192,14 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     }
 
     /**
+     * If already the active version, this is a no-op (no re-fetch, no re-switch) —
+     * the caller still gets [onFinished](true), since from the UI's point of view
+     * nothing needs to happen but the picker can still be dismissed.
      * If already downloaded, switches immediately.
      * If not, downloads first then switches.
      * [onFinished] fires with true if the version is now selected (either it
-     * was already downloaded, or the download just succeeded), false on failure —
-     * callers can use this to decide whether it's safe to navigate away.
+     * was already active/downloaded, or the download just succeeded), false on
+     * failure — callers can use this to decide whether it's safe to navigate away.
      *
      * Guards against re-entrancy: the UI already disables the row while a
      * download is in flight, but this check is synchronous (set before the
@@ -190,6 +207,10 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
      * can't start a second overlapping download of the same DB connection.
      */
     fun selectVersion(versionId: String, onFinished: (success: Boolean) -> Unit = {}) {
+        if (versionId == _selectedVersion.value.id) {
+            onFinished(true)
+            return
+        }
         if (_downloadingVersionId.value != null) return
         _downloadingVersionId.value = versionId
         _downloadInfo.value = null
@@ -206,14 +227,52 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         }
     }
 
+    /**
+     * Re-downloads an already-downloaded version from scratch — the only way to pick
+     * up a newer [DownloadedVersionInfo.schemaVersion] (e.g. a version downloaded
+     * before footnotes existed). No-ops while any other download is in flight.
+     */
+    fun redownloadVersion(versionId: String) {
+        if (_downloadingVersionId.value != null) return
+        _downloadingVersionId.value = versionId
+        _downloadProgress.value = 0f
+        _downloadError.value = null
+        _downloadInfo.value = null
+
+        viewModelScope.launch {
+            val result = repository.redownloadVersion(
+                translationId = versionId,
+                onProgress = { _downloadProgress.value = it }
+            )
+            _downloadingVersionId.value = null
+
+            result.fold(
+                onSuccess = {
+                    refreshDownloadedVersions()
+                    // Reload so an already-open chapter picks up the newly-fetched footnotes/rich content.
+                    if (_selectedVersion.value.id == versionId) {
+                        loadChapter(_currentBook.value, _currentChapter.value)
+                    }
+                },
+                onFailure = { _downloadError.value = it.message ?: "Download failed" }
+            )
+        }
+    }
+
     fun useLocalBible() {
-        _selectedVersion.value = DEFAULT_VERSION
-        loadChapter(_currentBook.value, _currentChapter.value)
+        switchToVersion(DEFAULT_VERSION.id)
     }
 
     private fun switchToVersion(versionId: String) {
         _selectedVersion.value = SelectedBibleVersion(id = versionId)
+        repository.saveSelectedVersion(versionId)
         loadChapter(_currentBook.value, _currentChapter.value)
+    }
+
+    private fun refreshDownloadedVersions() {
+        viewModelScope.launch {
+            _downloadedVersions.value = repository.getDownloadedVersions().associateBy { it.id }
+        }
     }
 
     private suspend fun downloadAndSwitch(versionId: String): Boolean {
@@ -235,6 +294,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
                         "${summary.downloadedChapterCount} chapters — some books aren't available in this translation."
                 }
                 switchToVersion(versionId)
+                refreshDownloadedVersions()
                 true
             },
             onFailure = {
