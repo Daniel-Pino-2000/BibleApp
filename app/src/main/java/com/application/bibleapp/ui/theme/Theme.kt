@@ -1,5 +1,6 @@
 package com.application.bibleapp.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -10,8 +11,11 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
 
 private val DarkColorScheme = darkColorScheme(
     primary = DarkPrimary,
@@ -96,6 +100,23 @@ fun BibleAppTheme(
 
         darkTheme -> DarkColorScheme
         else -> LightColorScheme
+    }
+
+    // enableEdgeToEdge() only picks status/nav bar icon appearance once, from the
+    // system's dark-mode setting at launch — it has no idea about this app's own
+    // ThemeMode override (Settings lets a user pick Dark while their system is in
+    // Light mode, or vice versa). Push the *actual* resolved theme to the window
+    // insets controller on every recomposition so the icons stay readable no
+    // matter which theme is actually on screen.
+    val view = LocalView.current
+    if (!view.isInEditMode) {
+        val activity = LocalContext.current as? Activity
+        SideEffect {
+            val window = activity?.window ?: return@SideEffect
+            val insetsController = WindowCompat.getInsetsController(window, view)
+            insetsController.isAppearanceLightStatusBars = !darkTheme
+            insetsController.isAppearanceLightNavigationBars = !darkTheme
+        }
     }
 
     MaterialTheme(
