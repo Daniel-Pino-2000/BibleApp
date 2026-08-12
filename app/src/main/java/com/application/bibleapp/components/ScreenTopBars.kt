@@ -2,8 +2,6 @@ package com.application.bibleapp.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.ArrowBack
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -12,14 +10,20 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarScrollBehavior
 import androidx.compose.runtime.Composable
 
+/** [versionLabel] is the active translation's short code (e.g. "KJV", "ESV") — see
+ *  [com.application.bibleapp.viewmodel.BibleViewModel.currentVersionLabel]. */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BibleTopBar(scrollBehavior: TopAppBarScrollBehavior?, onVersionClick: () -> Unit) {
+fun BibleTopBar(
+    scrollBehavior: TopAppBarScrollBehavior?,
+    versionLabel: String,
+    onVersionClick: () -> Unit
+) {
     TopBar(
         title = { Text("Bible") },
         actions = {
             Button(onClick = onVersionClick) {
-                Text("Version")
+                Text(versionLabel)
             }
         },
         scrollBehavior = scrollBehavior
@@ -37,14 +41,9 @@ fun HomeTopBar() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SearchTopBar(onSearchClick: () -> Unit) {
+fun SearchTopBar() {
     TopBar(
-        title = { Text("Search") },
-        actions = {
-            IconButton(onClick = onSearchClick) {
-                Icon(Icons.Default.Search, contentDescription = "Search")
-            }
-        }
+        title = { Text("Search") }
     )
 }
 
@@ -55,7 +54,7 @@ fun BookPickerTopBar(onBackClick: () -> Unit) {
         title = { Text("Select Book") },
         navigationIcon = {
             IconButton(onClick = onBackClick) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         }
     )
@@ -68,7 +67,7 @@ fun VersePickerTopBar(onBackClick: () -> Unit) {
         title = { Text("Select Verse") },
         navigationIcon = {
             IconButton(onClick = onBackClick) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         }
     )
@@ -81,7 +80,7 @@ fun VersionPickerTopBar(onBackClick: () -> Unit) {
         title = { Text("Select Version") },
         navigationIcon = {
             IconButton(onClick = onBackClick) {
-                Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
             }
         }
     )

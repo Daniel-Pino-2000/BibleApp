@@ -88,6 +88,24 @@ object HelloAoContentParser {
         items.orEmpty().mapNotNull { (it as? JsonPrimitive)?.contentOrNull }
             .joinToString(" ").replace(Regex("\\s+"), " ").trim()
 
+    private const val PARAGRAPH_MARKER = '¶'
+
+    /**
+     * The API has no structured paragraph field — a pilcrow baked into the start of a
+     * run's own text is the only signal a translation gives that this run begins a new
+     * paragraph. Strips the glyph (and the space that follows it) out of the visible
+     * text and reports whether it was there, so the renderer can turn it into a real
+     * paragraph break instead of a stray character.
+     */
+    private fun extractParagraphBreak(rawText: String): Pair<String, Boolean> {
+        val trimmed = rawText.trimStart()
+        return if (trimmed.startsWith(PARAGRAPH_MARKER)) {
+            trimmed.removePrefix(PARAGRAPH_MARKER.toString()).trimStart() to true
+        } else {
+            rawText to false
+        }
+    }
+
     /**
      * A verse's own content[] mixes plain strings with objects like
      * {"text":..., "poem":N, "wordsOfJesus":true}, {"lineBreak":true},
@@ -106,10 +124,17 @@ object HelloAoContentParser {
         items.forEach { item ->
             when (item) {
                 is JsonPrimitive -> {
-                    val text = item.contentOrNull
-                    if (!text.isNullOrEmpty()) {
-                        runs += VerseRun(text = text, lineBreakBefore = pendingLineBreak)
-                        pendingLineBreak = false
+                    val rawText = item.contentOrNull
+                    if (!rawText.isNullOrEmpty()) {
+                        val (text, paragraphBreak) = extractParagraphBreak(rawText)
+                        if (text.isNotEmpty()) {
+                            runs += VerseRun(
+                                text = text,
+                                lineBreakBefore = pendingLineBreak,
+                                paragraphBreakBefore = paragraphBreak
+                            )
+                            pendingLineBreak = false
+                        }
                     }
                 }
                 is JsonObject -> {
@@ -122,12 +147,14 @@ object HelloAoContentParser {
                             }
                         }
                         item["text"] != null -> {
-                            val text = item["text"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                            val rawText = item["text"]?.jsonPrimitive?.contentOrNull ?: return@forEach
+                            val (text, paragraphBreak) = extractParagraphBreak(rawText)
                             runs += VerseRun(
                                 text = text,
                                 isWordsOfJesus = item["wordsOfJesus"]?.jsonPrimitive?.booleanOrNull == true,
                                 poemLevel = item["poem"]?.jsonPrimitive?.intOrNull,
-                                lineBreakBefore = pendingLineBreak
+                                lineBreakBefore = pendingLineBreak,
+                                paragraphBreakBefore = paragraphBreak
                             )
                             pendingLineBreak = false
                         }

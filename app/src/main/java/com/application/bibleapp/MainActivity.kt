@@ -9,10 +9,15 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
@@ -53,6 +58,36 @@ class MainActivity : ComponentActivity() {
                 null
             }
 
+            // The system status bar hides/shows together with the rest of the reading
+            // chrome — driven by the same collapsedFraction the top/bottom bars use, so
+            // it disappears and reappears on the same scroll gesture, not independently.
+            // WindowInsetsController only has a discrete show()/hide() (no per-frame
+            // animation to drive continuously like a Compose modifier), so it's toggled
+            // at a threshold near each end of the collapse instead of every frame.
+            LaunchedEffect(scrollBehavior) {
+                val behavior = scrollBehavior ?: return@LaunchedEffect
+                val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                insetsController.systemBarsBehavior =
+                    WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+                snapshotFlow { behavior.state.collapsedFraction }
+                    .collect { fraction ->
+                        if (fraction > 0.9f) {
+                            insetsController.hide(WindowInsetsCompat.Type.statusBars())
+                        } else if (fraction < 0.1f) {
+                            insetsController.show(WindowInsetsCompat.Type.statusBars())
+                        }
+                    }
+            }
+
+            // Guards against leaving the Bible screen mid-scroll with the status bar still
+            // hidden — every other screen always shows it.
+            LaunchedEffect(currentRoute) {
+                if (currentRoute != Screen.Bible.route) {
+                    WindowCompat.getInsetsController(window, window.decorView)
+                        .show(WindowInsetsCompat.Type.statusBars())
+                }
+            }
+
             val themeMode by bibleViewModel.themeMode.collectAsState()
             val useDarkTheme = when (themeMode) {
                 ThemeMode.SYSTEM -> isSystemInDarkTheme()
@@ -70,12 +105,16 @@ class MainActivity : ComponentActivity() {
                         ),
                     topBar = {
                         when (currentRoute) {
-                            Screen.Bible.route -> BibleTopBar(
-                                scrollBehavior = scrollBehavior,
-                                onVersionClick = { navController.navigate(Screen.VersionPicker.route) }
-                            )
+                            Screen.Bible.route -> {
+                                val versionLabel by bibleViewModel.currentVersionLabel.collectAsState()
+                                BibleTopBar(
+                                    scrollBehavior = scrollBehavior,
+                                    versionLabel = versionLabel,
+                                    onVersionClick = { navController.navigate(Screen.VersionPicker.route) }
+                                )
+                            }
                             Screen.Home.route -> HomeTopBar()
-                            Screen.Search.route -> SearchTopBar { }
+                            Screen.Search.route -> SearchTopBar()
                             Screen.BookPicker.route -> BookPickerTopBar { navController.popBackStack() }
                             Screen.VersePicker.route -> VersePickerTopBar { navController.popBackStack() }
                             Screen.VersionPicker.route -> VersionPickerTopBar { navController.popBackStack() }
@@ -89,6 +128,7 @@ class MainActivity : ComponentActivity() {
                                 currentRoute = currentRoute,
                                 bibleViewModel = bibleViewModel,
                                 hideBar = false,
+                                scrollBehavior = scrollBehavior,
                                 onItemSelected = { route -> navController.navigate(route) },
                                 onBookPickerClicked = { navController.navigate(Screen.BookPicker.route) }
                             )

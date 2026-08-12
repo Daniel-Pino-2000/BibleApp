@@ -7,7 +7,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -44,6 +44,34 @@ private const val FOOTNOTE_MARKER = "†"
 /** Comfortable line length on wide/tablet screens — text doesn't stretch edge to edge. */
 private val MAX_READING_WIDTH = 640.dp
 
+/** A stray pilcrow the plain-text fallback (no rich content) can't turn into a real break. */
+private const val LEGACY_PARAGRAPH_MARKER = "¶ "
+
+/** One or more consecutive verses that read as a single flowing paragraph. */
+private data class VerseParagraph(val verses: List<VerseUI>)
+
+/**
+ * Groups verses at real paragraph boundaries only: the chapter's first verse, any verse
+ * carrying a heading (a new section always starts a fresh paragraph), or a verse whose
+ * own first run was marked [VerseRun.paragraphBreakBefore] by the parser. Everything else
+ * continues the paragraph already in progress — verses that were never marked can't be
+ * split from what precedes them, so a translation without paragraph data simply reads as
+ * one continuous flow (still better than a hard break after every verse).
+ */
+private fun groupIntoParagraphs(verses: List<VerseUI>): List<VerseParagraph> {
+    val groups = mutableListOf<MutableList<VerseUI>>()
+    verses.forEach { verse ->
+        val hasHeading = !verse.richContent?.headings.isNullOrEmpty()
+        val startsNewParagraph = verse.richContent?.runs?.firstOrNull()?.paragraphBreakBefore == true
+        if (groups.isEmpty() || hasHeading || startsNewParagraph) {
+            groups += mutableListOf(verse)
+        } else {
+            groups.last() += verse
+        }
+    }
+    return groups.map { VerseParagraph(it) }
+}
+
 @Composable
 fun BibleText(
     verses: List<VerseUI>,
@@ -54,11 +82,16 @@ fun BibleText(
 ) {
     // Create a new LazyListState each time the verses list changes
     val listState = remember(verses) { androidx.compose.foundation.lazy.LazyListState() }
+    val paragraphs = remember(verses) { groupIntoParagraphs(verses) }
 
-    // Scroll to the desired verse whenever verses or scroll index change
-    LaunchedEffect(verses.size, scrollToIndex) {
-        val index = (scrollToIndex - 1).coerceIn(verses.indices)
-        listState.scrollToItem(index)
+    // Scroll to the paragraph containing the desired verse whenever verses or the
+    // scroll target changes — paragraphs, not verses, are the list's item granularity.
+    LaunchedEffect(paragraphs, scrollToIndex) {
+        if (paragraphs.isEmpty()) return@LaunchedEffect
+        val targetIndex = paragraphs.indexOfFirst { paragraph ->
+            paragraph.verses.any { it.verse == scrollToIndex }
+        }
+        listState.scrollToItem(targetIndex.coerceIn(paragraphs.indices))
     }
 
     // Material's "error" role is spec'd to always be a red-family tone in both light
@@ -73,19 +106,26 @@ fun BibleText(
         state = listState,
         contentPadding = PaddingValues(vertical = Spacing.lg, horizontal = Spacing.lg)
     ) {
-        items(verses) { verse ->
+        itemsIndexed(paragraphs) { index, paragraph ->
+            val headings = paragraph.verses.first().richContent?.headings.orEmpty()
+
             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
                 Column(modifier = Modifier.widthIn(max = MAX_READING_WIDTH).fillMaxWidth()) {
-                    verse.richContent?.headings?.forEach { heading ->
+                    headings.forEach { heading ->
                         HeadingText(heading, textScale)
                     }
                     Text(
-                        text = verseAnnotatedString(
-                            verse, wordsOfJesusColor, footnoteColor, verseNumberColor, textScale, onFootnoteClick
+                        text = paragraphAnnotatedString(
+                            paragraph.verses, wordsOfJesusColor, footnoteColor, verseNumberColor, textScale, onFootnoteClick
                         ),
                         style = ReadingStyle.VerseText.scaledBy(textScale),
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = Spacing.xs)
+                        // A heading already reads as a section break on its own — only add the
+                        // paragraph gap above paragraphs that start without one.
+                        modifier = Modifier.padding(
+                            top = if (index > 0 && headings.isEmpty()) Spacing.xl else 0.dp,
+                            bottom = Spacing.xs
+                        )
                     )
                 }
             }
@@ -114,19 +154,14 @@ private fun HeadingText(heading: StoredHeading, textScale: Float) {
 }
 
 /**
- * Builds "<number> <text>" with the verse number as a small, superscript, subordinate
- * marker (not full-size body text), words-of-Jesus runs colored, poem lines broken onto
- * their own indented line, and a clickable superscript marker after any run with an
- * attached footnote — falling back to plain text for legacy rows.
- *
- * Each poem-tagged run (or any run with an explicit line break before it) gets its
- * own [ParagraphStyle] — Compose treats a ParagraphStyle span as a hard paragraph
- * break, so this both breaks the line and applies the indent in one step. A run
- * with no poem level and no line break just continues the current paragraph,
- * space-separated, same as plain prose.
+ * Builds one flowing paragraph's worth of text from however many verses belong to it:
+ * verse numbers render as small superscript markers inline (not line-starts), words-of-Jesus
+ * runs are colored, poem-tagged runs each get their own indented line via [ParagraphStyle],
+ * and a clickable superscript marker follows any run with an attached footnote. Verses with
+ * no rich content at all (legacy rows) fall back to their plain text.
  */
-private fun verseAnnotatedString(
-    verse: VerseUI,
+private fun paragraphAnnotatedString(
+    verses: List<VerseUI>,
     wordsOfJesusColor: Color,
     footnoteColor: Color,
     verseNumberColor: Color,
@@ -138,28 +173,36 @@ private fun verseAnnotatedString(
         baselineShift = BaselineShift.Superscript
     )
 
-    val runs = verse.richContent?.runs
-    if (runs.isNullOrEmpty()) {
-        return buildAnnotatedString {
-            withStyle(verseNumberStyle) { append("${verse.verse}") }
-            append(" ")
-            append(verse.text)
-        }
-    }
     return buildAnnotatedString {
-        runs.forEachIndexed { index, run ->
-            val startsNewLine = run.poemLevel != null || (run.lineBreakBefore && index > 0)
+        var isFirstRunInParagraph = true
 
-            if (startsNewLine) {
-                val indent = POEM_INDENT_STEP * (run.poemLevel ?: 0)
-                withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = indent, restLine = indent))) {
-                    if (index == 0) appendVerseNumber(verse.verse, verseNumberStyle)
+        verses.forEach { verse ->
+            val runs = verse.richContent?.runs
+
+            if (runs.isNullOrEmpty()) {
+                if (!isFirstRunInParagraph) append(" ")
+                appendVerseNumber(verse.verse, verseNumberStyle)
+                append(verse.text.removePrefix(LEGACY_PARAGRAPH_MARKER))
+                isFirstRunInParagraph = false
+                return@forEach
+            }
+
+            runs.forEachIndexed { index, run ->
+                val isFirstRunOfVerse = index == 0
+                val startsNewLine = run.poemLevel != null || (run.lineBreakBefore && !isFirstRunInParagraph)
+
+                if (startsNewLine) {
+                    val indent = POEM_INDENT_STEP * (run.poemLevel ?: 0)
+                    withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = indent, restLine = indent))) {
+                        if (isFirstRunOfVerse) appendVerseNumber(verse.verse, verseNumberStyle)
+                        appendRun(run, wordsOfJesusColor, footnoteColor, textScale, onFootnoteClick)
+                    }
+                } else {
+                    if (!isFirstRunInParagraph) append(" ")
+                    if (isFirstRunOfVerse) appendVerseNumber(verse.verse, verseNumberStyle)
                     appendRun(run, wordsOfJesusColor, footnoteColor, textScale, onFootnoteClick)
                 }
-            } else {
-                if (index > 0) append(" ")
-                if (index == 0) appendVerseNumber(verse.verse, verseNumberStyle)
-                appendRun(run, wordsOfJesusColor, footnoteColor, textScale, onFootnoteClick)
+                isFirstRunInParagraph = false
             }
         }
     }

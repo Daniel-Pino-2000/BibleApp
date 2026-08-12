@@ -7,40 +7,55 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
 import com.application.bibleapp.data.model.BibleBook
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.ui.theme.Spacing
+
+/** Minimum recommended touch target on Android — every cell stays at least this size
+ *  regardless of how many items share a row, even on narrow phones. */
+private val MIN_TOUCH_TARGET = 48.dp
 
 @Composable
 fun ItemGrid(
     modifier: Modifier = Modifier,
     items: List<Int>,
     itemsPerRow: Int = 5,
+    selectedItem: Int? = null,
     onItemClick: (Int) -> Unit
 ) {
     Column(modifier = modifier.padding(Spacing.sm)) {
         items.chunked(itemsPerRow).forEach { row ->
             Row {
                 row.forEach { number ->
+                    val isSelected = number == selectedItem
                     Surface(
                         modifier = Modifier
                             .padding(Spacing.xs)
                             .weight(1f)
                             .aspectRatio(1f)
+                            .sizeIn(minWidth = MIN_TOUCH_TARGET, minHeight = MIN_TOUCH_TARGET)
                             .clickable { onItemClick(number) },
                         shape = MaterialTheme.shapes.small,
-                        color = MaterialTheme.colorScheme.primaryContainer
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.primaryContainer
+                        }
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Text(
                                 text = number.toString(),
-                                style = MaterialTheme.typography.bodyLarge
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
                             )
                         }
                     }
@@ -54,17 +69,24 @@ fun ItemGrid(
         }
     }
 }
+
 @Composable
-fun ChapterGrid(book: BibleBook, onChapterClick: (Int) -> Unit) {
-    ItemGrid(items = book.chapters.map { it.number }, itemsPerRow = 5, onItemClick = onChapterClick)
+fun ChapterGrid(book: BibleBook, selectedChapter: Int? = null, onChapterClick: (Int) -> Unit) {
+    ItemGrid(
+        items = book.chapters.map { it.number },
+        itemsPerRow = 5,
+        selectedItem = selectedChapter,
+        onItemClick = onChapterClick
+    )
 }
 
 @Composable
-fun VerseGrid(bookId: Int, chapterId: Int, onVerseClick: (Int) -> Unit) {
+fun VerseGrid(bookId: Int, chapterId: Int, selectedVerse: Int? = null, onVerseClick: (Int) -> Unit) {
     val numberOfVerses = BibleBooks.getVerseCount(bookId, chapterId)
 
     // Generate a list of verse numbers from 1 to the total number of verses in the chapter
     val verseNumbers = (1..numberOfVerses).toList()
 
-    ItemGrid(items = verseNumbers, itemsPerRow = 8, onItemClick = onVerseClick)
+    // 6/row (not 8) so cells stay at or above the 48dp minimum touch target on common phone widths.
+    ItemGrid(items = verseNumbers, itemsPerRow = 6, selectedItem = selectedVerse, onItemClick = onVerseClick)
 }
