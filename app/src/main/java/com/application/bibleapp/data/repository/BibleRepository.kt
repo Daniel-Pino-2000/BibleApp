@@ -10,6 +10,8 @@ import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleRemoteDataSource
+import com.application.bibleapp.ui.theme.ThemeMode
+import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
@@ -88,7 +90,25 @@ class BibleRepository(
 
     fun loadSelectedVersion(): String = prefs.getString(KEY_SELECTED_VERSION, DEFAULT_VERSION.id) ?: DEFAULT_VERSION.id
 
+    fun saveThemeMode(mode: ThemeMode) {
+        prefs.edit().putString(KEY_THEME_MODE, mode.name).apply()
+    }
+
+    fun loadThemeMode(): ThemeMode {
+        val stored = prefs.getString(KEY_THEME_MODE, null) ?: return ThemeMode.SYSTEM
+        return runCatching { ThemeMode.valueOf(stored) }.getOrDefault(ThemeMode.SYSTEM)
+    }
+
+    fun saveVerseTextScale(scale: VerseTextScale) {
+        prefs.edit().putFloat(KEY_VERSE_TEXT_SCALE, scale.multiplier).apply()
+    }
+
+    fun loadVerseTextScale(): VerseTextScale =
+        VerseTextScale.fromMultiplier(prefs.getFloat(KEY_VERSE_TEXT_SCALE, VerseTextScale.DEFAULT.multiplier))
+
     private companion object {
         const val KEY_SELECTED_VERSION = "selected_version_id"
+        const val KEY_THEME_MODE = "theme_mode"
+        const val KEY_VERSE_TEXT_SCALE = "verse_text_scale"
     }
 }

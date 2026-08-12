@@ -4,10 +4,12 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
@@ -19,12 +21,14 @@ import com.application.bibleapp.components.BookPickerTopBar
 import com.application.bibleapp.components.HomeTopBar
 import com.application.bibleapp.components.MainBottomBar
 import com.application.bibleapp.components.SearchTopBar
+import com.application.bibleapp.components.SettingsTopBar
 import com.application.bibleapp.components.TopBar
 import com.application.bibleapp.components.VersePickerTopBar
 import com.application.bibleapp.components.VersionPickerTopBar
 import com.application.bibleapp.navigation.Navigation
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.ui.theme.BibleAppTheme
+import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.viewmodel.BibleViewModel
 import com.application.bibleapp.viewmodel.BibleViewModelFactory
 
@@ -49,7 +53,14 @@ class MainActivity : ComponentActivity() {
                 null
             }
 
-            BibleAppTheme {
+            val themeMode by bibleViewModel.themeMode.collectAsState()
+            val useDarkTheme = when (themeMode) {
+                ThemeMode.SYSTEM -> isSystemInDarkTheme()
+                ThemeMode.LIGHT -> false
+                ThemeMode.DARK -> true
+            }
+
+            BibleAppTheme(darkTheme = useDarkTheme) {
                 Scaffold(
                     modifier = Modifier
                         .fillMaxSize()
@@ -68,6 +79,7 @@ class MainActivity : ComponentActivity() {
                             Screen.BookPicker.route -> BookPickerTopBar { navController.popBackStack() }
                             Screen.VersePicker.route -> VersePickerTopBar { navController.popBackStack() }
                             Screen.VersionPicker.route -> VersionPickerTopBar { navController.popBackStack() }
+                            Screen.More.route -> SettingsTopBar()
                             else -> TopBar()
                         }
                     },

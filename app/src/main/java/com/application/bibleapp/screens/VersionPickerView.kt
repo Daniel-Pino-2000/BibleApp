@@ -13,10 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 /**
@@ -60,11 +57,12 @@ fun VersionPickerView(
         if (error != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Failed to load versions", color = Color.Red)
+                    Text("Failed to load versions", color = MaterialTheme.colorScheme.error)
                     Text(
                         text = "Tap to retry",
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = Spacing.sm)
                             .clickable { bibleViewModel.loadAvailableVersions() }
                     )
                 }
@@ -78,8 +76,9 @@ fun VersionPickerView(
                     Text("No versions available")
                     Text(
                         text = "Tap to retry",
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = Spacing.sm)
                             .clickable { bibleViewModel.loadAvailableVersions() }
                     )
                 }
@@ -92,7 +91,7 @@ fun VersionPickerView(
             onValueChange = bibleViewModel::onVersionSearchQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             placeholder = { Text("Search by language or version") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true
@@ -100,9 +99,13 @@ fun VersionPickerView(
 
         // Download error banner
         downloadError?.let {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = "Download failed: $it", color = Color.Red)
-                Text(text = "Tap a version below to retry", fontSize = 12.sp, color = Color.Gray)
+            Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+                Text(text = "Download failed: $it", color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = "Tap a version below to retry",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -111,8 +114,8 @@ fun VersionPickerView(
             Text(
                 text = it,
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)
             )
         }
 
@@ -129,10 +132,10 @@ fun VersionPickerView(
                     Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                         Text(
                             text = group.languageName,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
                         )
                     }
                 }
@@ -156,33 +159,41 @@ fun VersionPickerView(
                                     if (success) onVersionClicked()
                                 }
                             }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                            .padding(horizontal = Spacing.lg, vertical = Spacing.md),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = version.displayName)
+                            Text(text = version.displayName, style = MaterialTheme.typography.bodyLarge)
                             version.nativeName.takeIf { it.isNotBlank() && it != version.displayName }?.let { nativeName ->
-                                Text(text = nativeName, fontSize = 12.sp, color = Color.Gray)
+                                Text(
+                                    text = nativeName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             if (needsUpdate) {
                                 Text(
                                     text = "Update available — tap ⟳ for footnotes and formatting",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             } else if (isDownloaded && !isSelected) {
-                                Text(text = "Downloaded", fontSize = 12.sp, color = Color.Gray)
+                                Text(
+                                    text = "Downloaded",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
                             }
                             if (isDownloading) {
-                                Spacer(modifier = Modifier.height(4.dp))
+                                Spacer(modifier = Modifier.height(Spacing.xs))
                                 LinearProgressIndicator(
                                     progress = { downloadProgress },
                                     modifier = Modifier.fillMaxWidth()
                                 )
                                 Text(
                                     text = "${(downloadProgress * 100).toInt()}%",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
@@ -194,15 +205,16 @@ fun VersionPickerView(
                             ) {
                                 Icon(
                                     Icons.Default.Refresh,
-                                    contentDescription = "Re-download ${version.displayName} for footnotes and formatting added since it was downloaded"
+                                    contentDescription = "Re-download ${version.displayName} for footnotes and formatting added since it was downloaded",
+                                    tint = MaterialTheme.colorScheme.primary
                                 )
                             }
                         } else if (isDownloaded && !isSelected) {
                             Icon(
                                 Icons.Default.CheckCircle,
                                 contentDescription = "Already downloaded",
-                                tint = Color.Gray,
-                                modifier = Modifier.padding(start = 8.dp)
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = Spacing.sm)
                             )
                         }
 
@@ -210,12 +222,12 @@ fun VersionPickerView(
                             Text(
                                 text = "✓",
                                 color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 8.dp)
+                                modifier = Modifier.padding(start = Spacing.sm)
                             )
                         }
                     }
 
-                    HorizontalDivider()
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 }
             }
         }

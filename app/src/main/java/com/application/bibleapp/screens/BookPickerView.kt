@@ -42,6 +42,8 @@ import com.application.bibleapp.components.SearchBar
 import com.application.bibleapp.components.VerseGrid
 import com.application.bibleapp.data.model.BibleBook
 import com.application.bibleapp.data.model.Chapter
+import androidx.compose.material3.HorizontalDivider
+import com.application.bibleapp.ui.theme.Spacing
 
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,12 +83,22 @@ fun BookPickerView(
             modifier = Modifier.fillMaxSize()
         ) {
             items(filteredBooks) { book ->
-                Text(book.name, Modifier.clickable(true, onClick = {
-                    expandedBookId.value =
-                        if (expandedBookId.value == book.id) null else book.id
-                }))
+                val isExpanded = expandedBookId.value == book.id
 
-                if (expandedBookId.value == book.id) {
+                Text(
+                    text = book.name,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable(true, onClick = {
+                            expandedBookId.value =
+                                if (expandedBookId.value == book.id) null else book.id
+                        })
+                        .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+                )
+
+                if (isExpanded) {
                     ChapterGrid(book) { chapterNumber ->
 
                         // Trigger the callback to navigate to VersePickerView
@@ -94,6 +106,8 @@ fun BookPickerView(
 
                     }
                 }
+
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
 
         }

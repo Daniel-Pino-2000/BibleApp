@@ -1,19 +1,16 @@
 package com.application.bibleapp.components
 
-import android.R.attr.contentDescription
-import android.R.attr.label
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.application.bibleapp.navigation.Screen
@@ -37,7 +34,7 @@ fun MainBottomBar(
         HorizontalDivider(
             modifier = Modifier.fillMaxWidth(),
             thickness = 0.5.dp,
-            color = Color.LightGray
+            color = MaterialTheme.colorScheme.outlineVariant
         )
 
         if (currentRoute == Screen.Bible.route) {
@@ -61,7 +58,7 @@ fun MainBottomBar(
         }
 
         NavigationBar(
-            containerColor = Color.Transparent
+            containerColor = MaterialTheme.colorScheme.surface
         ) {
             bottomNavigationItems.forEach { item ->
                 NavigationBarItem(

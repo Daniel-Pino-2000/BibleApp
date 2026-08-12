@@ -3,6 +3,7 @@ package com.application.bibleapp.screens
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
@@ -17,6 +18,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.VerseGrid
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -30,7 +32,9 @@ fun VersePickerView(
 
 
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .padding(Spacing.lg)
     ) {
 
         VerseGrid(

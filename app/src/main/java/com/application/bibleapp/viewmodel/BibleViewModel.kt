@@ -8,10 +8,13 @@ import com.application.bibleapp.data.model.DEFAULT_VERSION
 import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.SelectedBibleVersion
+import com.application.bibleapp.data.model.VerseOfTheDay
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
 import com.application.bibleapp.data.repository.BibleRepository
+import com.application.bibleapp.ui.theme.ThemeMode
+import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -85,6 +88,17 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     private val _selectedVersion = MutableStateFlow(DEFAULT_VERSION)
     val selectedVersion: StateFlow<SelectedBibleVersion> = _selectedVersion.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(repository.loadThemeMode())
+    val themeMode: StateFlow<ThemeMode> = _themeMode.asStateFlow()
+
+    private val _verseTextScale = MutableStateFlow(repository.loadVerseTextScale())
+    val verseTextScale: StateFlow<VerseTextScale> = _verseTextScale.asStateFlow()
+
+    // Shown on Home — fetched independently of currentBook/currentChapter so it
+    // doesn't disturb the user's actual reading position.
+    private val _verseOfTheDay = MutableStateFlow<VerseUI?>(null)
+    val verseOfTheDay: StateFlow<VerseUI?> = _verseOfTheDay.asStateFlow()
+
     // Locally downloaded versions, keyed by id, so the picker can badge "downloaded" /
     // "update available" without a DB query per row. Refreshed after every download.
     private val _downloadedVersions = MutableStateFlow<Map<String, DownloadedVersionInfo>>(emptyMap())
@@ -113,9 +127,18 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             val isAvailable = persistedId == DEFAULT_VERSION.id || repository.isVersionDownloaded(persistedId)
             _selectedVersion.value = if (isAvailable) SelectedBibleVersion(id = persistedId) else DEFAULT_VERSION
             loadChapter(_currentBook.value, _currentChapter.value)
+            loadVerseOfTheDay()
         }
         loadAvailableVersions()
         refreshDownloadedVersions()
+    }
+
+    private fun loadVerseOfTheDay() {
+        viewModelScope.launch {
+            val ref = VerseOfTheDay.forToday()
+            val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, _selectedVersion.value.id)
+            _verseOfTheDay.value = chapterVerses.firstOrNull { it.verse == ref.verse }
+        }
     }
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {
@@ -192,6 +215,16 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     fun onVersionSearchQueryChange(query: String) {
         _versionSearchQuery.value = query
+    }
+
+    fun setThemeMode(mode: ThemeMode) {
+        _themeMode.value = mode
+        repository.saveThemeMode(mode)
+    }
+
+    fun setVerseTextScale(scale: VerseTextScale) {
+        _verseTextScale.value = scale
+        repository.saveVerseTextScale(scale)
     }
 
     fun loadAvailableVersions() {

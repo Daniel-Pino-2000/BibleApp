@@ -1,5 +1,6 @@
 package com.application.bibleapp.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,11 +17,11 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import com.application.bibleapp.components.BibleText
 import com.application.bibleapp.components.BookPickerBar
 import com.application.bibleapp.data.repository.BibleRepository
+import com.application.bibleapp.ui.theme.ReadingStyle
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -33,27 +34,38 @@ fun BibleView(
     val currentVerse by bibleViewModel.currentVerse.collectAsState()
     val verses by bibleViewModel.verses.collectAsState()
     val selectedFootnote by bibleViewModel.selectedFootnote.collectAsState()
+    val verseTextScale by bibleViewModel.verseTextScale.collectAsState()
 
     Column(
         modifier = modifier
             .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
     ) {
         BibleText(
             verses = verses,
             scrollToIndex = currentVerse,
             modifier = Modifier
                 .fillMaxSize(), // BibleText takes full size of Column
+            textScale = verseTextScale.multiplier,
             onFootnoteClick = { noteId -> bibleViewModel.selectFootnote(noteId) }
         )
     }
 
     selectedFootnote?.let { footnote ->
-        ModalBottomSheet(onDismissRequest = { bibleViewModel.dismissFootnote() }) {
-            Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 8.dp)) {
-                Text(text = "Verse ${footnote.verse}", fontWeight = FontWeight.Bold)
+        ModalBottomSheet(
+            onDismissRequest = { bibleViewModel.dismissFootnote() },
+            shape = MaterialTheme.shapes.large
+        ) {
+            Column(modifier = Modifier.padding(horizontal = Spacing.xl, vertical = Spacing.sm)) {
+                Text(
+                    text = "Verse ${footnote.verse}",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
                 Text(
                     text = footnote.text,
-                    modifier = Modifier.padding(top = 8.dp, bottom = 24.dp),
+                    style = ReadingStyle.FootnoteBody,
+                    modifier = Modifier.padding(top = Spacing.sm, bottom = Spacing.xl),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }

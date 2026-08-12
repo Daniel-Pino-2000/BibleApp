@@ -1,12 +1,10 @@
 package com.application.bibleapp.navigation
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -15,6 +13,7 @@ import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
 import com.application.bibleapp.screens.SearchView
+import com.application.bibleapp.screens.SettingsView
 import com.application.bibleapp.screens.VersePickerView
 import com.application.bibleapp.screens.VersionPickerView
 import com.application.bibleapp.viewmodel.BibleViewModel
@@ -25,15 +24,18 @@ fun Navigation(
     padding: PaddingValues,
     bibleViewModel: BibleViewModel
 ) {
-    val context = LocalContext.current
-
     NavHost(
         navController = navController,
         startDestination = Screen.Home.route
     ) {
 
         composable(Screen.Home.route) {
-            HomeView(modifier = Modifier.padding(padding))
+            HomeView(
+                bibleViewModel = bibleViewModel,
+                modifier = Modifier.padding(padding),
+                onContinueReadingClick = { navController.navigate(Screen.Bible.route) },
+                onSearchClick = { navController.navigate(Screen.Search.route) }
+            )
         }
 
         composable(Screen.Bible.route) {
@@ -53,7 +55,7 @@ fun Navigation(
 
 
         composable(Screen.More.route) {
-            Toast.makeText(context, "Settings Screen coming soon!", Toast.LENGTH_SHORT).show()
+            SettingsView(bibleViewModel, modifier = Modifier.padding(padding))
         }
 
         composable(Screen.BookPicker.route) {
