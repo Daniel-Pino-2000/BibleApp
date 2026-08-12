@@ -18,7 +18,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.BibleText
-import com.application.bibleapp.components.BookPickerBar
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.ui.theme.ReadingStyle
 import com.application.bibleapp.ui.theme.Spacing

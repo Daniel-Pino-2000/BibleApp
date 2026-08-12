@@ -18,42 +18,31 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.unit.dp
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.ui.theme.Spacing
 
 /**
- * The current book/chapter label always stays visible (it's the reader's only anchor once
- * the rest of the chrome hides on scroll) — only the prev/next arrows fade out, via
- * [arrowsAlpha] driven by the same scroll fraction the rest of the collapsing chrome uses.
- * [arrowsEnabled] disables the buttons once they're invisible so a scroll-triggered fade
- * can't leave an invisible-but-still-tappable target behind.
+ * A compact toolbar of just the prev/next chapter arrows — sits directly above
+ * [ChapterAnchorBar] as a related-but-distinct piece (see [MainBottomBar]'s cohesive
+ * bottom-chrome grouping), not the label itself. Arrows sit at the row's edges for
+ * one-handed thumb reach, matching how the anchor's label sits centered below.
  */
 @Composable
-fun BookPickerBar(
-    currentBook: Int,
-    currentChapter: Int,
+fun ChapterArrowsToolbar(
     onPrevious: () -> Unit,
-    onNext: () -> Unit,
-    onSelectBook: () -> Unit,
-    arrowsAlpha: Float = 1f,
-    arrowsEnabled: Boolean = true
+    onNext: () -> Unit
 ) {
-
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            .padding(horizontal = Spacing.lg, vertical = Spacing.xs),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         FilledTonalIconButton(
             onClick = onPrevious,
-            enabled = arrowsEnabled,
-            modifier = Modifier
-                .size(48.dp)
-                .alpha(arrowsAlpha),
+            modifier = Modifier.size(48.dp),
             colors = IconButtonDefaults.filledTonalIconButtonColors(
                 containerColor = MaterialTheme.colorScheme.surfaceVariant,
                 contentColor = MaterialTheme.colorScheme.primary
@@ -62,6 +51,37 @@ fun BookPickerBar(
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Chapter")
         }
 
+        FilledTonalIconButton(
+            onClick = onNext,
+            modifier = Modifier.size(48.dp),
+            colors = IconButtonDefaults.filledTonalIconButtonColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                contentColor = MaterialTheme.colorScheme.primary
+            )
+        ) {
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Chapter")
+        }
+    }
+}
+
+/**
+ * The persistent "you are here" anchor — always visible even once the rest of the
+ * reading chrome hides on scroll (see [MainBottomBar]). Centered and set in a slightly
+ * larger type than a typical toolbar label, since it's meant to read as the more
+ * prominent of the two chapter-navigation pieces.
+ */
+@Composable
+fun ChapterAnchorBar(
+    currentBook: Int,
+    currentChapter: Int,
+    onSelectBook: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
+        horizontalArrangement = Arrangement.Center
+    ) {
         FilledTonalButton(
             onClick = onSelectBook,
             colors = ButtonDefaults.filledTonalButtonColors(
@@ -70,21 +90,10 @@ fun BookPickerBar(
             )
         ) {
             // Compute reactively, recomposes automatically when currentBook or currentChapter changes
-            Text("${BibleBooks.getBookById(currentBook)?.name ?: "Unknown"} $currentChapter")
-        }
-
-        FilledTonalIconButton(
-            onClick = onNext,
-            enabled = arrowsEnabled,
-            modifier = Modifier
-                .size(48.dp)
-                .alpha(arrowsAlpha),
-            colors = IconButtonDefaults.filledTonalIconButtonColors(
-                containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                contentColor = MaterialTheme.colorScheme.primary
+            Text(
+                text = "${BibleBooks.getBookById(currentBook)?.name ?: "Unknown"} $currentChapter",
+                style = MaterialTheme.typography.titleMedium
             )
-        ) {
-            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Chapter")
         }
     }
 }
