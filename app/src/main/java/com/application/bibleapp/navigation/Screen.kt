@@ -6,6 +6,16 @@ sealed class Screen(val route: String, val title: String) {
     object Search : Screen("search", "Search")
     object More : Screen("more", "More")
     object BookPicker: Screen("book_picker", "Select Book")
-    object VersePicker: Screen("verse_picker", "Select Verse")
+
+    /**
+     * Carries the chosen book/chapter as path args instead of through the shared
+     * [com.application.bibleapp.viewmodel.BibleViewModel] state, so backing out of the verse
+     * picker without picking a verse can't leave the ViewModel's currentBook/currentChapter
+     * pointing at a chapter whose verses were never actually loaded.
+     */
+    object VersePicker: Screen("verse_picker/{bookId}/{chapter}", "Select Verse") {
+        fun createRoute(bookId: Int, chapter: Int) = "verse_picker/$bookId/$chapter"
+    }
+
     object VersionPicker: Screen("version_picker", "Select Version")
 }

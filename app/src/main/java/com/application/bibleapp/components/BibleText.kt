@@ -54,11 +54,26 @@ private data class VerseParagraph(val verses: List<VerseUI>)
  * Groups verses at real paragraph boundaries only: the chapter's first verse, any verse
  * carrying a heading (a new section always starts a fresh paragraph), or a verse whose
  * own first run was marked [VerseRun.paragraphBreakBefore] by the parser. Everything else
- * continues the paragraph already in progress — verses that were never marked can't be
- * split from what precedes them, so a translation without paragraph data simply reads as
- * one continuous flow (still better than a hard break after every verse).
+ * continues the paragraph already in progress.
+ *
+ * If NO verse in the chapter carries a heading or paragraph-break marker at all — the
+ * bundled KJV has no rich content whatsoever, and a downloaded translation's source text
+ * may never mark paragraph starts — grouping this way would merge the *entire chapter*
+ * into a single paragraph. [BibleText] scrolls to a verse by scrolling to the paragraph
+ * (list item) containing it, so a single mega-paragraph makes every verse in the chapter
+ * resolve to the same item — scrolling to verse 16 lands wherever verse 1 is. Falling back
+ * to one verse per paragraph keeps every verse individually scrollable; a translation that
+ * does have real paragraph data is unaffected.
  */
 private fun groupIntoParagraphs(verses: List<VerseUI>): List<VerseParagraph> {
+    val hasParagraphStructure = verses.any { verse ->
+        !verse.richContent?.headings.isNullOrEmpty() ||
+            verse.richContent?.runs?.firstOrNull()?.paragraphBreakBefore == true
+    }
+    if (!hasParagraphStructure) {
+        return verses.map { VerseParagraph(listOf(it)) }
+    }
+
     val groups = mutableListOf<MutableList<VerseUI>>()
     verses.forEach { verse ->
         val hasHeading = !verse.richContent?.headings.isNullOrEmpty()

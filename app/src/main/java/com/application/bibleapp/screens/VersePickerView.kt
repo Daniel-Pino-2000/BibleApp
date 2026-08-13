@@ -16,14 +16,20 @@ import com.application.bibleapp.viewmodel.BibleViewModel
 @Composable
 fun VersePickerView(
     bibleViewModel: BibleViewModel,
+    bookId: Int,
+    chapter: Int,
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit,
-    onVerseClicked: () -> Unit
+    onVerseClicked: (verse: Int) -> Unit
 ) {
 
     val currentBook by bibleViewModel.currentBook.collectAsState()
     val currentChapter by bibleViewModel.currentChapter.collectAsState()
     val currentVerse by bibleViewModel.currentVerse.collectAsState()
+
+    // Only highlight a pre-selected verse if this is the chapter currently open on the
+    // reading screen — a freshly picked chapter has no verse "selected" yet.
+    val selectedVerse = if (bookId == currentBook && chapter == currentChapter) currentVerse else null
 
     Column(
         modifier = modifier
@@ -32,12 +38,11 @@ fun VersePickerView(
     ) {
 
         VerseGrid(
-            bookId = currentBook,
-            chapterId = currentChapter,
-            selectedVerse = currentVerse
+            bookId = bookId,
+            chapterId = chapter,
+            selectedVerse = selectedVerse
         ) { verse -> // verse number return by the ItemGrid
-            bibleViewModel.setVerse(verse)
-            onVerseClicked()
+            onVerseClicked(verse)
         }
     }
 

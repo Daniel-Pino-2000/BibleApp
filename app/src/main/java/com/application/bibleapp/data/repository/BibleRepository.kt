@@ -15,6 +15,9 @@ import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+/** The last book/chapter/verse the user had open, restored on app launch. */
+data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
+
 /**
  * Sits between [BibleViewModel][com.application.bibleapp.viewmodel.BibleViewModel] and
  * the two data sources it coordinates: [remote] (the [BibleRemoteDataSource]
@@ -106,9 +109,27 @@ class BibleRepository(
     fun loadVerseTextScale(): VerseTextScale =
         VerseTextScale.fromMultiplier(prefs.getFloat(KEY_VERSE_TEXT_SCALE, VerseTextScale.DEFAULT.multiplier))
 
+    /** Persisted across process restarts so the app reopens on the last book/chapter/verse read. */
+    fun saveReadingPosition(bookId: Int, chapter: Int, verse: Int) {
+        prefs.edit()
+            .putInt(KEY_READING_BOOK, bookId)
+            .putInt(KEY_READING_CHAPTER, chapter)
+            .putInt(KEY_READING_VERSE, verse)
+            .apply()
+    }
+
+    fun loadReadingPosition(): ReadingPosition = ReadingPosition(
+        bookId = prefs.getInt(KEY_READING_BOOK, 1),
+        chapter = prefs.getInt(KEY_READING_CHAPTER, 1),
+        verse = prefs.getInt(KEY_READING_VERSE, 1)
+    )
+
     private companion object {
         const val KEY_SELECTED_VERSION = "selected_version_id"
         const val KEY_THEME_MODE = "theme_mode"
         const val KEY_VERSE_TEXT_SCALE = "verse_text_scale"
+        const val KEY_READING_BOOK = "reading_book_id"
+        const val KEY_READING_CHAPTER = "reading_chapter"
+        const val KEY_READING_VERSE = "reading_verse"
     }
 }

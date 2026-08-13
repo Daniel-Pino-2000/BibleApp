@@ -138,7 +138,8 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             val persistedId = repository.loadSelectedVersion()
             val isAvailable = persistedId == DEFAULT_VERSION.id || repository.isVersionDownloaded(persistedId)
             _selectedVersion.value = if (isAvailable) SelectedBibleVersion(id = persistedId) else DEFAULT_VERSION
-            loadChapter(_currentBook.value, _currentChapter.value)
+            val lastPosition = repository.loadReadingPosition()
+            loadChapter(lastPosition.bookId, lastPosition.chapter, lastPosition.verse)
             loadVerseOfTheDay()
         }
         loadAvailableVersions()
@@ -161,7 +162,9 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             _footnotes.value = repository.getFootnotes(bookId = bookId, chapter = chapterId, versionId = versionId)
             _currentBook.value = bookId
             _currentChapter.value = chapterId
-            _currentVerse.value = verseId.coerceIn(1, chapterData.size)
+            val verse = verseId.coerceIn(1, chapterData.size.coerceAtLeast(1))
+            _currentVerse.value = verse
+            repository.saveReadingPosition(bookId, chapterId, verse)
         }
     }
 
@@ -201,10 +204,6 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     fun setChapter(chapterId: Int) {
         _currentChapter.value = chapterId
         loadChapter(_currentBook.value, chapterId)
-    }
-
-    fun setVerse(verseNumber: Int) {
-        _currentVerse.value = verseNumber
     }
 
     fun onSearchQueryChange(newQuery: String) {

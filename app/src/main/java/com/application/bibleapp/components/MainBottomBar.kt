@@ -23,34 +23,38 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
+import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
 import com.application.bibleapp.viewmodel.BibleViewModel
 import kotlin.math.roundToInt
 
 /**
- * The whole bottom-of-screen chrome — chapter arrows, the persistent chapter anchor, and
- * the tab navigation row — reads as one cohesive group rather than three stacked strips:
+ * The whole bottom-of-screen chrome — the chapter nav row and the tab navigation row —
+ * reads as one cohesive group rather than two stacked strips:
  * - A single outer [Surface] supplies one background color and one base tonal elevation
- *   for the entire group (arrows toolbar, tab row, and the gap the system nav bar shows
- *   through via [navigationBarsPadding]), so there's no color or shadow seam between them.
+ *   for the entire group (nav row, tab row, and the gap the system nav bar shows through
+ *   via [navigationBarsPadding]), so there's no color or shadow seam between them.
  *   [NavigationBar] below no longer paints its own container color for the same reason.
- * - [ChapterAnchorBar] — the one piece that stays visible once everything else recedes on
- *   scroll — sits at a slightly higher tonal elevation than its surroundings, reading as
- *   the "anchor" the rest of the chrome is arranged around, with hairline dividers marking
- *   it off from the (collapsible) toolbar above and tab row below.
+ * - [ChapterNavBar] — arrows plus the "you are here" book/chapter pill in one row — stays
+ *   visible even once the tab row recedes on scroll, sitting at a slightly higher tonal
+ *   elevation than its surroundings so it reads as the anchor the rest of the chrome is
+ *   arranged around, with a hairline divider marking it off from the tab row below.
  * - [chromeHiddenFraction] — a single, already-smoothed and debounced 0..1 value (see
- *   MainActivity) — drives both the arrows toolbar and the tab row through the same
- *   [CollapsingSection], so the two collapsible pieces shrink/fade in perfect lockstep;
- *   only [ChapterAnchorBar] never collapses.
+ *   MainActivity) — drives the tab row through [CollapsingSection]; [ChapterNavBar] never
+ *   collapses, so chapter navigation stays reachable through the whole scroll gesture.
  *
- * [navigationBarsPadding] is applied once, here, at the outermost level — not inside
- * [NavigationBar] (its own default inset handling is turned off via `windowInsets =
+ * [navigationBarsPadding] is applied once, here, at the outermost content level — not
+ * inside [NavigationBar] (its own default inset handling is turned off via `windowInsets =
  * WindowInsets(0)`) — so there's exactly one place reserving room for the system
- * navigation bar, and it still applies to [ChapterAnchorBar] even after the tab row has
- * fully collapsed out from under it. Combined with edge-to-edge leaving the system nav
- * bar transparent, the same surface color painted here is what shows through behind it,
- * so the transition into the system bar's own space is seamless rather than a color break.
+ * navigation bar, and it still applies to [ChapterNavBar] even after the tab row has
+ * fully collapsed out from under it. Crucially, the padding sits *inside* the outer
+ * [Surface], not on the [Surface] itself: a `Surface(modifier = Modifier
+ * .navigationBarsPadding())` would shrink the Surface's own painted bounds by the inset,
+ * leaving that strip uncolored — exactly the strip the transparent, edge-to-edge system
+ * nav bar sits over. Painting the [Surface] full-bleed and padding only its content is
+ * what makes this surface color the one that actually shows through behind the system bar,
+ * so the transition into its own space is seamless rather than a color break.
  */
 @Composable
 fun MainBottomBar(
@@ -62,38 +66,32 @@ fun MainBottomBar(
     onBookPickerClicked: () -> Unit
 ) {
     Surface(
-        modifier = Modifier.navigationBarsPadding(),
         color = MaterialTheme.colorScheme.surface,
         tonalElevation = NavigationBarDefaults.Elevation
     ) {
-        Column {
+        Column(modifier = Modifier.navigationBarsPadding()) {
             if (currentRoute == Screen.Bible.route) {
                 val currentBook by bibleViewModel.currentBook.collectAsState()
                 val currentChapter by bibleViewModel.currentChapter.collectAsState()
+                val canGoPrevious = currentBook > 1 || currentChapter > 1
+                val canGoNext = BibleBooks.getBookById(currentBook)?.let { book ->
+                    currentChapter < book.chapters.size || currentBook < BibleBooks.allBooks.size
+                } ?: false
 
-                CollapsingSection(collapsedFraction = chromeHiddenFraction) {
-                    Column {
-                        ChapterArrowsToolbar(
-                            onPrevious = { bibleViewModel.previousChapter() },
-                            onNext = { bibleViewModel.nextChapter() }
-                        )
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outlineVariant,
-                            thickness = 0.5.dp
-                        )
-                    }
-                }
-
-                // A touch more tonal elevation than its surroundings — the anchor reads as
-                // slightly "raised" relative to the toolbar/tab row around it, the same
-                // system M3 already uses to signal elevation, no new color introduced.
+                // A touch more tonal elevation than its surroundings — the row reads as
+                // slightly "raised" relative to the tab row around it, the same system M3
+                // already uses to signal elevation, no new color introduced.
                 Surface(
                     color = MaterialTheme.colorScheme.surface,
                     tonalElevation = NavigationBarDefaults.Elevation + 2.dp
                 ) {
-                    ChapterAnchorBar(
+                    ChapterNavBar(
                         currentBook = currentBook,
                         currentChapter = currentChapter,
+                        canGoPrevious = canGoPrevious,
+                        canGoNext = canGoNext,
+                        onPrevious = { bibleViewModel.previousChapter() },
+                        onNext = { bibleViewModel.nextChapter() },
                         onSelectBook = onBookPickerClicked
                     )
                 }
@@ -142,8 +140,7 @@ fun MainBottomBar(
 /**
  * Shrinks its content's reported height to `0` at [collapsedFraction] `1f` (not just a
  * visual offset), so the Scaffold reclaims the freed space and the reading content below
- * can expand into it, and fades it out over the same range. Used for both the arrows
- * toolbar and the tab row so they collapse identically, driven by the same fraction.
+ * can expand into it, and fades it out over the same range. Used for the tab row.
  */
 @Composable
 private fun CollapsingSection(

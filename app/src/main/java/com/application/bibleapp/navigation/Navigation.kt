@@ -6,8 +6,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.BookPickerView
@@ -66,23 +68,34 @@ fun Navigation(
                     navController.popBackStack()
                 },
                 onChapterClick = { bookId, chapterNumber ->
-                    // 1. Update ViewModel with selected book & chapter
-                    bibleViewModel.setBook(bookId, chapterNumber)
-
-                    // 2. Navigate to VersePicker
-                    navController.navigate(Screen.VersePicker.route)
+                    navController.navigate(Screen.VersePicker.createRoute(bookId, chapterNumber))
                 }
             )
         }
 
-        composable(Screen.VersePicker.route) {
+        composable(
+            Screen.VersePicker.route,
+            arguments = listOf(
+                navArgument("bookId") { type = NavType.IntType },
+                navArgument("chapter") { type = NavType.IntType }
+            )
+        ) { backStackEntry ->
+            val bookId = backStackEntry.arguments?.getInt("bookId") ?: 1
+            val chapter = backStackEntry.arguments?.getInt("chapter") ?: 1
             VersePickerView(
                 bibleViewModel,
+                bookId = bookId,
+                chapter = chapter,
                 modifier = Modifier.padding(padding),
                 onBackClick = {
                     navController.popBackStack()
                 } ,
-                onVerseClicked = {
+                onVerseClicked = { verse ->
+                    // Only now — with book, chapter, AND verse all known together — does the
+                    // chapter actually load. Loading eagerly when the chapter was first picked
+                    // (defaulting to verse 1) let that load's completion race this later verse
+                    // pick and land after it, silently resetting the scroll target back to 1.
+                    bibleViewModel.setBook(bookId, chapter, verse)
                     navController.navigate(Screen.Bible.route)
                 }
             )
