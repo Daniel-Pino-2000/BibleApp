@@ -51,6 +51,11 @@ private const val LEGACY_PARAGRAPH_MARKER = "¶ "
 /** One or more consecutive verses that read as a single flowing paragraph. */
 private data class VerseParagraph(val verses: List<VerseUI>)
 
+/** A long run of verses with no internal paragraph signal (e.g. most of a Psalm, which
+ *  only carries a heading on its opening verse) is still re-chunked to roughly this size —
+ *  see the second doc paragraph on [groupIntoParagraphs]. */
+private const val MAX_VERSES_PER_PARAGRAPH = 6
+
 /**
  * Groups verses at real paragraph boundaries only: the chapter's first verse, any verse
  * carrying a heading (a new section always starts a fresh paragraph), or a verse whose
@@ -60,32 +65,39 @@ private data class VerseParagraph(val verses: List<VerseUI>)
  * If NO verse in the chapter carries a heading or paragraph-break marker at all — the
  * bundled KJV has no rich content whatsoever, and a downloaded translation's source text
  * may never mark paragraph starts — grouping this way would merge the *entire chapter*
- * into a single paragraph. [BibleText] scrolls to a verse by scrolling to the paragraph
- * (list item) containing it, so a single mega-paragraph makes every verse in the chapter
- * resolve to the same item — scrolling to verse 16 lands wherever verse 1 is. Falling back
- * to one verse per paragraph keeps every verse individually scrollable; a translation that
- * does have real paragraph data is unaffected.
+ * into a single paragraph. The same failure shows up in a milder disguise whenever a
+ * chapter's *only* structural signal is a single heading on its first verse: every Psalm
+ * with a superscription ("A Psalm of David") but no further headings or paragraph breaks
+ * groups its verse 1 through however many verses it has into one giant paragraph — a
+ * 50-verse psalm becomes exactly one paragraph. [BibleText] scrolls to a verse by scrolling
+ * to the paragraph (list item) containing it, so a single mega-paragraph makes every verse
+ * in the chapter resolve to the same item — scrolling to verse 40 lands wherever verse 1 is.
+ * Re-chunking any run of [MAX_VERSES_PER_PARAGRAPH]+ verses that share no real paragraph
+ * marker keeps every verse within reach of a nearby scroll target while leaving genuine,
+ * reasonably-sized paragraphs (real heading/pilcrow/line_break data) untouched.
  */
 private fun groupIntoParagraphs(verses: List<VerseUI>): List<VerseParagraph> {
     val hasParagraphStructure = verses.any { verse ->
         !verse.richContent?.headings.isNullOrEmpty() ||
             verse.richContent?.runs?.firstOrNull()?.paragraphBreakBefore == true
     }
-    if (!hasParagraphStructure) {
-        return verses.map { VerseParagraph(listOf(it)) }
-    }
-
-    val groups = mutableListOf<MutableList<VerseUI>>()
-    verses.forEach { verse ->
-        val hasHeading = !verse.richContent?.headings.isNullOrEmpty()
-        val startsNewParagraph = verse.richContent?.runs?.firstOrNull()?.paragraphBreakBefore == true
-        if (groups.isEmpty() || hasHeading || startsNewParagraph) {
-            groups += mutableListOf(verse)
-        } else {
-            groups.last() += verse
+    val groups: List<List<VerseUI>> = if (!hasParagraphStructure) {
+        verses.map { listOf(it) }
+    } else {
+        val built = mutableListOf<MutableList<VerseUI>>()
+        verses.forEach { verse ->
+            val hasHeading = !verse.richContent?.headings.isNullOrEmpty()
+            val startsNewParagraph = verse.richContent?.runs?.firstOrNull()?.paragraphBreakBefore == true
+            if (built.isEmpty() || hasHeading || startsNewParagraph) {
+                built += mutableListOf(verse)
+            } else {
+                built.last() += verse
+            }
         }
+        built
     }
-    return groups.map { VerseParagraph(it) }
+    return groups.flatMap { group -> group.chunked(MAX_VERSES_PER_PARAGRAPH) }
+        .map { VerseParagraph(it) }
 }
 
 @Composable
@@ -103,13 +115,18 @@ fun BibleText(
 
     // Scroll to the paragraph containing the desired verse whenever verses or the
     // scroll target changes — paragraphs, not verses, are the list's item granularity.
-    // +1 because the chapter title occupies list item 0, ahead of every paragraph.
+    // The chapter title occupies list item 0, ahead of every paragraph (item 1 = the
+    // first paragraph, item 2 = the second, etc). Landing on the first paragraph scrolls
+    // to item 0 instead of item 1, so the title is the thing snapped to the top of the
+    // viewport — not pushed off-screen above whatever paragraph verse 1 sits in — matching
+    // every other paragraph, which does scroll flush to the top of the viewport.
     LaunchedEffect(paragraphs, scrollToIndex) {
         if (paragraphs.isEmpty()) return@LaunchedEffect
         val targetIndex = paragraphs.indexOfFirst { paragraph ->
             paragraph.verses.any { it.verse == scrollToIndex }
-        }
-        listState.scrollToItem((targetIndex.coerceIn(paragraphs.indices)) + 1)
+        }.coerceIn(paragraphs.indices)
+        val listItemIndex = if (targetIndex == 0) 0 else targetIndex + 1
+        listState.scrollToItem(listItemIndex)
     }
 
     // Material's "error" role is spec'd to always be a red-family tone in both light
