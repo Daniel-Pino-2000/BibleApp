@@ -39,10 +39,18 @@ object HelloAoContentParser {
      * entries until the next "verse" entry claims them. A verse with markers but no
      * actual text (e.g. only a stray `{"noteId":N}`) is dropped — there's nothing to
      * store or render for it.
+     *
+     * A chapter-level (not inline) `{"type":"line_break"}` entry is a translation's
+     * *structured* paragraph/stanza break — the alternative to baking a `¶` into verse
+     * text (see [extractParagraphBreak]). Some translations (e.g. BSB) use this instead
+     * of pilcrows and never emit a pilcrow at all, so it's tracked the same way pending
+     * headings are: it marks whichever verse comes next as starting a new paragraph,
+     * same effect as [VerseRun.paragraphBreakBefore] set from a pilcrow.
      */
     fun extractVerses(content: List<JsonElement>): List<ParsedVerse> {
         val verses = mutableListOf<ParsedVerse>()
         val pendingHeadings = mutableListOf<StoredHeading>()
+        var pendingParagraphBreak = false
 
         content.forEach { element ->
             val obj = element as? JsonObject ?: return@forEach
@@ -57,9 +65,21 @@ object HelloAoContentParser {
                     .takeIf { it.isNotBlank() }
                     ?.let { pendingHeadings += StoredHeading(type = "hebrew_subtitle", text = it) }
 
+                "line_break" -> pendingParagraphBreak = true
+
                 "verse" -> {
                     val number = obj["number"]?.jsonPrimitive?.intOrNull ?: return@forEach
                     val runs = buildRuns(obj["content"]?.jsonArray ?: JsonArray(emptyList()))
+                        .let { parsedRuns ->
+                            if (pendingParagraphBreak && parsedRuns.isNotEmpty()) {
+                                parsedRuns.toMutableList().also {
+                                    it[0] = it[0].copy(paragraphBreakBefore = true)
+                                }
+                            } else {
+                                parsedRuns
+                            }
+                        }
+                    pendingParagraphBreak = false
                     val plainText = runs.joinToString(" ") { it.text }.replace(Regex("\\s+"), " ").trim()
                     if (plainText.isNotBlank()) {
                         verses += ParsedVerse(
@@ -71,7 +91,7 @@ object HelloAoContentParser {
                     }
                 }
 
-                else -> {} // "line_break" and anything else carries no info we need beyond what's already in runs
+                else -> {} // anything else carries no info we need beyond what's already in runs
             }
         }
         return verses

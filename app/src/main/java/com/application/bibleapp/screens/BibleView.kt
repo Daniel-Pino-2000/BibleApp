@@ -18,6 +18,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.BibleText
+import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.ui.theme.ReadingStyle
 import com.application.bibleapp.ui.theme.Spacing
@@ -31,9 +32,12 @@ fun BibleView(
 ) {
 
     val currentVerse by bibleViewModel.currentVerse.collectAsState()
+    val currentBook by bibleViewModel.currentBook.collectAsState()
+    val currentChapter by bibleViewModel.currentChapter.collectAsState()
     val verses by bibleViewModel.verses.collectAsState()
     val selectedFootnote by bibleViewModel.selectedFootnote.collectAsState()
     val verseTextScale by bibleViewModel.verseTextScale.collectAsState()
+    val chapterTitle = "${BibleBooks.getBookById(currentBook)?.name ?: "Unknown"} $currentChapter"
 
     Column(
         modifier = modifier
@@ -43,6 +47,7 @@ fun BibleView(
         BibleText(
             verses = verses,
             scrollToIndex = currentVerse,
+            chapterTitle = chapterTitle,
             modifier = Modifier
                 .fillMaxSize(), // BibleText takes full size of Column
             textScale = verseTextScale.multiplier,

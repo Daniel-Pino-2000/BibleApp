@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -91,6 +92,7 @@ private fun groupIntoParagraphs(verses: List<VerseUI>): List<VerseParagraph> {
 fun BibleText(
     verses: List<VerseUI>,
     scrollToIndex: Int,
+    chapterTitle: String,
     modifier: Modifier = Modifier,
     textScale: Float = 1f,
     onFootnoteClick: (Int) -> Unit = {}
@@ -101,12 +103,13 @@ fun BibleText(
 
     // Scroll to the paragraph containing the desired verse whenever verses or the
     // scroll target changes — paragraphs, not verses, are the list's item granularity.
+    // +1 because the chapter title occupies list item 0, ahead of every paragraph.
     LaunchedEffect(paragraphs, scrollToIndex) {
         if (paragraphs.isEmpty()) return@LaunchedEffect
         val targetIndex = paragraphs.indexOfFirst { paragraph ->
             paragraph.verses.any { it.verse == scrollToIndex }
         }
-        listState.scrollToItem(targetIndex.coerceIn(paragraphs.indices))
+        listState.scrollToItem((targetIndex.coerceIn(paragraphs.indices)) + 1)
     }
 
     // Material's "error" role is spec'd to always be a red-family tone in both light
@@ -121,6 +124,9 @@ fun BibleText(
         state = listState,
         contentPadding = PaddingValues(vertical = Spacing.lg, horizontal = Spacing.lg)
     ) {
+        item {
+            ChapterHeader(chapterTitle, textScale)
+        }
         itemsIndexed(paragraphs) { index, paragraph ->
             val headings = paragraph.verses.first().richContent?.headings.orEmpty()
 
@@ -144,6 +150,31 @@ fun BibleText(
                     )
                 }
             }
+        }
+    }
+}
+
+/**
+ * The chapter's own title (e.g. "Genesis 1") — shown above every chapter regardless of
+ * what the translation's own markup does or doesn't have, so there's always at least
+ * one clear heading at the top of the reading surface. Centered within the same
+ * max-width column as the verse text so it stays aligned with the body on wide screens.
+ */
+@Composable
+private fun ChapterHeader(title: String, textScale: Float) {
+    Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+        Column(modifier = Modifier.widthIn(max = MAX_READING_WIDTH).fillMaxWidth()) {
+            Text(
+                text = title,
+                style = ReadingStyle.ChapterTitle.scaledBy(textScale),
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = Spacing.md)
+            )
+            HorizontalDivider(
+                color = MaterialTheme.colorScheme.outlineVariant,
+                thickness = 0.5.dp,
+                modifier = Modifier.padding(bottom = Spacing.lg)
+            )
         }
     }
 }

@@ -14,6 +14,16 @@ import androidx.compose.ui.unit.sp
  * slot is meant to carry.
  */
 object ReadingStyle {
+    /** Chapter title at the top of the reading surface (e.g. "Genesis 1"). Sits above
+     *  [SectionHeading] in the hierarchy — larger and bolder — since it's the one
+     *  heading every chapter gets, regardless of what the translation's own markup has. */
+    val ChapterTitle = TextStyle(
+        fontFamily = FontFamily.Serif,
+        fontWeight = FontWeight.Bold,
+        fontSize = 28.sp,
+        lineHeight = 34.sp
+    )
+
     /** Verse body text. ~1.6x line-height for long-form reading comfort. */
     val VerseText = TextStyle(
         fontFamily = FontFamily.Serif,
