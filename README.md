@@ -17,9 +17,9 @@ Two larger pieces are still ahead:
 
 <table>
   <tr>
+    <td><img src="docs/screenshots/home.png" width="200" alt="Home screen"></td>
     <td><img src="docs/screenshots/reading.png" width="200" alt="Reading screen"></td>
     <td><img src="docs/screenshots/version-picker.png" width="200" alt="Version picker"></td>
-    <td><img src="docs/screenshots/chapter-picker.png" width="200" alt="Chapter picker"></td>
   </tr>
 </table>
 
