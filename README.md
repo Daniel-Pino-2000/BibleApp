@@ -3,6 +3,26 @@
 An Android Bible reader (Kotlin, Jetpack Compose, Material3) with a bundled King James
 Version and on-demand downloads of other translations for fully offline reading.
 
+## Project status
+
+🚧 **Work in progress — not feature-complete.** The reader itself (bundled KJV, on-demand
+translation downloads, full-text search, footnotes, poem/heading formatting) works today.
+Two larger pieces are still ahead:
+
+- **User accounts and sync** — a [Ktor](https://ktor.io) backend for authentication and
+  persisting user data (bookmarks, reading progress, notes) across devices.
+- **Bible chatbot** — an in-app assistant for answering Bible-related questions.
+
+## Screenshots
+
+<table>
+  <tr>
+    <td><img src="docs/screenshots/reading.png" width="200" alt="Reading screen"></td>
+    <td><img src="docs/screenshots/version-picker.png" width="200" alt="Version picker"></td>
+    <td><img src="docs/screenshots/chapter-picker.png" width="200" alt="Chapter picker"></td>
+  </tr>
+</table>
+
 ## Architecture at a glance
 
 ```
