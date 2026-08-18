@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -43,7 +44,15 @@ fun SettingsView(
         verticalArrangement = Arrangement.spacedBy(Spacing.xl)
     ) {
         SettingsSection(title = "Appearance") {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            // Horizontally scrollable rather than fixed — a Row doesn't wrap or
+            // shrink its children, so on narrow screens the widest chip label(s)
+            // (see "Verse Text Size" below) would otherwise get cut off past the
+            // screen edge. Matches the pattern already used for the suggested-search
+            // chips in SearchView.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
                         selected = themeMode == mode,
@@ -55,7 +64,10 @@ fun SettingsView(
         }
 
         SettingsSection(title = "Verse Text Size") {
-            Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+                modifier = Modifier.horizontalScroll(rememberScrollState())
+            ) {
                 VerseTextScale.entries.forEach { scale ->
                     FilterChip(
                         selected = verseTextScale == scale,
