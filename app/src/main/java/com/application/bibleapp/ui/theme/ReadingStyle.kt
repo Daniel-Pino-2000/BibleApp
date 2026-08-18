@@ -1,9 +1,11 @@
 package com.application.bibleapp.ui.theme
 
+import androidx.compose.ui.text.PlatformTextStyle
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.sp
 
@@ -25,13 +27,26 @@ object ReadingStyle {
     )
 
     /** Verse body text. ~1.7x line-height for long-form reading comfort (the 1.6-1.8
-     *  range recommended for scripture-length body copy). */
+     *  range recommended for scripture-length body copy).
+     *
+     *  [lineHeightStyle]/[platformStyle] pin every line to the same, uniform leading
+     *  regardless of what's mixed into it — this style renders poem lines (each its
+     *  own [androidx.compose.ui.text.ParagraphStyle]) where only *some* lines carry a
+     *  superscript verse number or footnote marker. Without pinning it, those taller
+     *  spans nudge just their own line's spacing, so consecutive poem lines end up
+     *  visibly uneven; with it, every line reserves the same leading and the poem
+     *  reads as a clean, regular block instead of a ragged one. */
     val VerseText = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Normal,
         fontSize = 18.sp,
         lineHeight = 31.sp,
-        letterSpacing = 0.1.sp
+        letterSpacing = 0.1.sp,
+        lineHeightStyle = LineHeightStyle(
+            alignment = LineHeightStyle.Alignment.Proportional,
+            trim = LineHeightStyle.Trim.None
+        ),
+        platformStyle = PlatformTextStyle(includeFontPadding = false)
     )
 
     /** Verse number marker — deliberately small/light so it stays subordinate to the text. */

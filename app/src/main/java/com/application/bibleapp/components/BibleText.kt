@@ -62,8 +62,13 @@ private val READING_HORIZONTAL_MARGIN = Spacing.xl
 /** A stray pilcrow the plain-text fallback (no rich content) can't turn into a real break. */
 private const val LEGACY_PARAGRAPH_MARKER = "¶ "
 
-/** One or more consecutive verses that read as a single flowing paragraph. */
-private data class VerseParagraph(val verses: List<VerseUI>)
+/** One or more consecutive verses that read as a single flowing paragraph.
+ *  [isContinuation] marks a chunk that only exists because [groupIntoParagraphs] cut a
+ *  real paragraph down to size for scroll-target granularity — it isn't a genuine new
+ *  paragraph, so [BibleText] renders it with no gap above, right after the chunk before
+ *  it, so a long uninterrupted psalm still reads as one continuous block instead of
+ *  fracturing into arbitrarily-spaced pieces every [MAX_VERSES_PER_PARAGRAPH] verses. */
+private data class VerseParagraph(val verses: List<VerseUI>, val isContinuation: Boolean = false)
 
 /** A long run of verses with no internal paragraph signal (e.g. most of a Psalm, which
  *  only carries a heading on its opening verse) is still re-chunked to roughly this size —
@@ -110,8 +115,11 @@ private fun groupIntoParagraphs(verses: List<VerseUI>): List<VerseParagraph> {
         }
         built
     }
-    return groups.flatMap { group -> group.chunked(MAX_VERSES_PER_PARAGRAPH) }
-        .map { VerseParagraph(it) }
+    return groups.flatMap { group ->
+        group.chunked(MAX_VERSES_PER_PARAGRAPH).mapIndexed { chunkIndex, chunk ->
+            VerseParagraph(chunk, isContinuation = chunkIndex > 0)
+        }
+    }
 }
 
 @Composable
@@ -172,10 +180,16 @@ fun BibleText(
                         ),
                         style = ReadingStyle.VerseText.scaledBy(textScale),
                         color = MaterialTheme.colorScheme.onSurface,
-                        // A heading already reads as a section break on its own — only add the
-                        // paragraph gap above paragraphs that start without one.
+                        // A heading already reads as a section break on its own, and a
+                        // continuation chunk (see VerseParagraph.isContinuation) isn't a real
+                        // paragraph start at all — only add the gap above paragraphs that
+                        // both start without a heading and are genuinely new.
                         modifier = Modifier.padding(
-                            top = if (index > 0 && headings.isEmpty()) Spacing.xl else 0.dp,
+                            top = if (index > 0 && headings.isEmpty() && !paragraph.isContinuation) {
+                                Spacing.xl
+                            } else {
+                                0.dp
+                            },
                             bottom = Spacing.xs
                         )
                     )
