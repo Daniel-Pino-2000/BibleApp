@@ -4,8 +4,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,6 +28,7 @@ import com.application.bibleapp.ui.theme.VerseTextScale
 import com.application.bibleapp.ui.theme.scaledBy
 import com.application.bibleapp.viewmodel.BibleViewModel
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsView(
     bibleViewModel: BibleViewModel,
@@ -44,14 +45,15 @@ fun SettingsView(
         verticalArrangement = Arrangement.spacedBy(Spacing.xl)
     ) {
         SettingsSection(title = "Appearance") {
-            // Horizontally scrollable rather than fixed — a Row doesn't wrap or
-            // shrink its children, so on narrow screens the widest chip label(s)
-            // (see "Verse Text Size" below) would otherwise get cut off past the
-            // screen edge. Matches the pattern already used for the suggested-search
-            // chips in SearchView.
-            Row(
+            // FlowRow rather than a plain Row — a Row doesn't wrap or shrink its
+            // children, so on narrow screens the widest chip label(s) (see "Verse
+            // Text Size" below) would otherwise get cut off past the screen edge.
+            // Wrapping keeps every option visible up front instead of hiding some
+            // behind a scroll gesture, which is the standard M3 pattern for chip
+            // groups like this.
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.horizontalScroll(rememberScrollState())
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
@@ -64,9 +66,9 @@ fun SettingsView(
         }
 
         SettingsSection(title = "Verse Text Size") {
-            Row(
+            FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                modifier = Modifier.horizontalScroll(rememberScrollState())
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
                 VerseTextScale.entries.forEach { scale ->
                     FilterChip(
