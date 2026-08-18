@@ -38,12 +38,26 @@ import com.application.bibleapp.ui.theme.scaledBy
 /** Indentation per poem nesting level — enough to read as a poetry line, not just a wrapped paragraph. */
 private val POEM_INDENT_STEP = 20.sp
 
+/** Extra indent applied only when a poetic line wraps onto a second visual line, on top of
+ *  its [POEM_INDENT_STEP] level indent — the classic hanging-indent convention (à la
+ *  bibliography entries) that marks a wrapped continuation as "more of the same line",
+ *  distinct from a new stanza line starting fresh at its own level indent. */
+private val POEM_WRAP_HANG_INDENT = 16.sp
+
 /** Generic marker for every footnote — the API's `caller` is usually just "auto-generate", so a
  *  fixed symbol avoids the complexity of sequential per-chapter lettering for a first pass. */
 private const val FOOTNOTE_MARKER = "†"
 
-/** Comfortable line length on wide/tablet screens — text doesn't stretch edge to edge. */
-private val MAX_READING_WIDTH = 640.dp
+/** Comfortable line length on wide/tablet screens — text doesn't stretch edge to edge.
+ *  ~600dp keeps body copy (18sp serif, ~0.55em average glyph width) around 65-70
+ *  characters per line, the upper end of the 60-75cpl reading-comfort range; phones
+ *  never reach this width so they're governed by [READING_HORIZONTAL_MARGIN] instead. */
+private val MAX_READING_WIDTH = 600.dp
+
+/** Horizontal margin for the reading column. Wider than the app's default [Spacing.lg]
+ *  so body text has real breathing room against the screen edge on phones — the
+ *  narrowest viewport, where [MAX_READING_WIDTH] never actually kicks in. */
+private val READING_HORIZONTAL_MARGIN = Spacing.xl
 
 /** A stray pilcrow the plain-text fallback (no rich content) can't turn into a real break. */
 private const val LEGACY_PARAGRAPH_MARKER = "¶ "
@@ -139,7 +153,7 @@ fun BibleText(
     LazyColumn(
         modifier = modifier,
         state = listState,
-        contentPadding = PaddingValues(vertical = Spacing.lg, horizontal = Spacing.lg)
+        contentPadding = PaddingValues(vertical = Spacing.xl, horizontal = READING_HORIZONTAL_MARGIN)
     ) {
         item {
             ChapterHeader(chapterTitle, textScale)
@@ -190,7 +204,9 @@ private fun ChapterHeader(title: String, textScale: Float) {
             HorizontalDivider(
                 color = MaterialTheme.colorScheme.outlineVariant,
                 thickness = 0.5.dp,
-                modifier = Modifier.padding(bottom = Spacing.lg)
+                // Clearly separates the title block from the first line of verse text below —
+                // more than the gap used between ordinary paragraphs.
+                modifier = Modifier.padding(bottom = Spacing.xl)
             )
         }
     }
@@ -211,7 +227,9 @@ private fun HeadingText(heading: StoredHeading, textScale: Float) {
             text = heading.text,
             style = ReadingStyle.SectionHeading.scaledBy(textScale),
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = Spacing.md, bottom = Spacing.xs)
+            // A pericope title needs to read as a firm break from the previous passage,
+            // not just a slightly-bolder line butted up against it.
+            modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.sm)
         )
     }
 }
@@ -256,7 +274,13 @@ private fun paragraphAnnotatedString(
 
                 if (startsNewLine) {
                     val indent = POEM_INDENT_STEP * (run.poemLevel ?: 0)
-                    withStyle(ParagraphStyle(textIndent = TextIndent(firstLine = indent, restLine = indent))) {
+                    val style = ParagraphStyle(
+                        textIndent = TextIndent(
+                            firstLine = indent,
+                            restLine = (indent.value + POEM_WRAP_HANG_INDENT.value).sp
+                        )
+                    )
+                    withStyle(style) {
                         if (isFirstRunOfVerse) appendVerseNumber(verse.verse, verseNumberStyle)
                         appendRun(run, wordsOfJesusColor, footnoteColor, textScale, onFootnoteClick)
                     }

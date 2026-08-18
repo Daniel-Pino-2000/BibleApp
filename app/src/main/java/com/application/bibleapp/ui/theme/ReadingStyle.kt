@@ -24,12 +24,13 @@ object ReadingStyle {
         lineHeight = 34.sp
     )
 
-    /** Verse body text. ~1.6x line-height for long-form reading comfort. */
+    /** Verse body text. ~1.7x line-height for long-form reading comfort (the 1.6-1.8
+     *  range recommended for scripture-length body copy). */
     val VerseText = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.Normal,
         fontSize = 18.sp,
-        lineHeight = 29.sp,
+        lineHeight = 31.sp,
         letterSpacing = 0.1.sp
     )
 
@@ -40,12 +41,14 @@ object ReadingStyle {
         fontSize = 12.sp
     )
 
-    /** Section heading preceding a passage (e.g. "The Sermon on the Mount"). */
+    /** Section heading preceding a passage (e.g. "The Sermon on the Mount"). Sized
+     *  clearly above [VerseText] (not just bolder) so it reads as a real break
+     *  between passages rather than an emphasized verse. */
     val SectionHeading = TextStyle(
         fontFamily = FontFamily.Serif,
         fontWeight = FontWeight.SemiBold,
-        fontSize = 19.sp,
-        lineHeight = 26.sp
+        fontSize = 21.sp,
+        lineHeight = 27.sp
     )
 
     /** Hebrew subtitle / psalm superscription. */
