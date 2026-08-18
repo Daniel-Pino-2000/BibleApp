@@ -38,12 +38,6 @@ import com.application.bibleapp.ui.theme.scaledBy
 /** Indentation per poem nesting level — enough to read as a poetry line, not just a wrapped paragraph. */
 private val POEM_INDENT_STEP = 20.sp
 
-/** Extra indent applied only when a poetic line wraps onto a second visual line, on top of
- *  its [POEM_INDENT_STEP] level indent — the classic hanging-indent convention (à la
- *  bibliography entries) that marks a wrapped continuation as "more of the same line",
- *  distinct from a new stanza line starting fresh at its own level indent. */
-private val POEM_WRAP_HANG_INDENT = 16.sp
-
 /** Generic marker for every footnote — the API's `caller` is usually just "auto-generate", so a
  *  fixed symbol avoids the complexity of sequential per-chapter lettering for a first pass. */
 private const val FOOTNOTE_MARKER = "†"
@@ -287,13 +281,22 @@ private fun paragraphAnnotatedString(
                 val startsNewLine = run.poemLevel != null || (run.lineBreakBefore && !isFirstRunInParagraph)
 
                 if (startsNewLine) {
+                    // Verified on-device with a pixel-level before/after comparison:
+                    // giving a poem line's *first* display line a non-zero indent
+                    // while it also opens with the verse-number superscript throws
+                    // off Compose's indent for that paragraph's *wrapped* line — the
+                    // wrap renders less indented than the first line instead of
+                    // matching it. Lines that don't carry a verse number (every
+                    // second-clause/continuation poem run) aren't affected — their
+                    // first line and wrap both indent correctly at the same value.
+                    // So: a verse-opening poem line gets firstLine=0 (the verse
+                    // number sits flush at the margin, same as it does in ordinary
+                    // prose paragraphs elsewhere in this file) and only its wrap
+                    // picks up the poem indent; every other poem line indents
+                    // uniformly on both its first line and its wrap.
                     val indent = POEM_INDENT_STEP * (run.poemLevel ?: 0)
-                    val style = ParagraphStyle(
-                        textIndent = TextIndent(
-                            firstLine = indent,
-                            restLine = (indent.value + POEM_WRAP_HANG_INDENT.value).sp
-                        )
-                    )
+                    val firstLineIndent = if (isFirstRunOfVerse) 0.sp else indent
+                    val style = ParagraphStyle(textIndent = TextIndent(firstLine = firstLineIndent, restLine = indent))
                     withStyle(style) {
                         if (isFirstRunOfVerse) appendVerseNumber(verse.verse, verseNumberStyle)
                         appendRun(run, wordsOfJesusColor, footnoteColor, textScale, onFootnoteClick)
