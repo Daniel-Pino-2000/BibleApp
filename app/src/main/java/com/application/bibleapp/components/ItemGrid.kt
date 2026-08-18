@@ -42,9 +42,9 @@ fun ItemGrid(
                             .padding(Spacing.xs)
                             .weight(1f)
                             .aspectRatio(1f)
-                            .sizeIn(minWidth = MIN_TOUCH_TARGET, minHeight = MIN_TOUCH_TARGET)
-                            .clickable { onItemClick(number) },
+                            .sizeIn(minWidth = MIN_TOUCH_TARGET, minHeight = MIN_TOUCH_TARGET),
                         shape = MaterialTheme.shapes.small,
+                        onClick = { onItemClick(number) },
                         color = if (isSelected) {
                             MaterialTheme.colorScheme.primary
                         } else {

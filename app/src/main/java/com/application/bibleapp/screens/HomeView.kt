@@ -113,10 +113,10 @@ private fun HomeShortcutRow(
 ) {
     Surface(
         modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick),
+            .fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        color = MaterialTheme.colorScheme.surfaceVariant
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        onClick = onClick
     ) {
         Row(
             modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
