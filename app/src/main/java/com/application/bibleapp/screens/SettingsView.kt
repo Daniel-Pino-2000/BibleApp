@@ -1,11 +1,11 @@
 package com.application.bibleapp.screens
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -28,7 +28,6 @@ import com.application.bibleapp.ui.theme.VerseTextScale
 import com.application.bibleapp.ui.theme.scaledBy
 import com.application.bibleapp.viewmodel.BibleViewModel
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsView(
     bibleViewModel: BibleViewModel,
@@ -45,15 +44,17 @@ fun SettingsView(
         verticalArrangement = Arrangement.spacedBy(Spacing.xl)
     ) {
         SettingsSection(title = "Appearance") {
-            // FlowRow rather than a plain Row — a Row doesn't wrap or shrink its
-            // children, so on narrow screens the widest chip label(s) (see "Verse
-            // Text Size" below) would otherwise get cut off past the screen edge.
-            // Wrapping keeps every option visible up front instead of hiding some
-            // behind a scroll gesture, which is the standard M3 pattern for chip
-            // groups like this.
-            FlowRow(
+            // Measured on device: "Small"+"Default"+"Large"+"Extra Large" together
+            // need ~1024px on a 360dp-wide phone, ~40px more than the row actually
+            // has — wrapping the widest chip onto its own line reads as an orphaned
+            // button, and there's no font-size/padding trim that reliably closes a
+            // 40px gap across devices and system text-scale settings without
+            // breaking again. A single scrollable row is the same pattern already
+            // used for the suggested-search chips in SearchView, so every chip stays
+            // the same size as its siblings and the group still reads as one row.
+            Row(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                modifier = Modifier.horizontalScroll(rememberScrollState())
             ) {
                 ThemeMode.entries.forEach { mode ->
                     FilterChip(
@@ -66,9 +67,9 @@ fun SettingsView(
         }
 
         SettingsSection(title = "Verse Text Size") {
-            FlowRow(
+            Row(
                 horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
+                modifier = Modifier.horizontalScroll(rememberScrollState())
             ) {
                 VerseTextScale.entries.forEach { scale ->
                     FilterChip(
