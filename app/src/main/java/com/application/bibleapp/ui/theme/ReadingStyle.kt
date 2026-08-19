@@ -82,12 +82,16 @@ object ReadingStyle {
     )
 }
 
-/** Adjustable verse text size, persisted via [com.application.bibleapp.data.repository.BibleRepository]. */
+/** Adjustable verse text size, persisted via [com.application.bibleapp.data.repository.BibleRepository].
+ *  The old 0.85x "Small" tier was dropped and every remaining tier shifted down a slot — what used
+ *  to be the 1x/1.15x/1.3x DEFAULT/LARGE/EXTRA_LARGE options are now SMALL/DEFAULT/LARGE, so the
+ *  constant names still line up with their own labels (and [DEFAULT] — the fallback both here and
+ *  in [com.application.bibleapp.data.repository.BibleRepository.loadVerseTextScale] — is still the
+ *  option actually labeled "Default", not the smallest one). */
 enum class VerseTextScale(val multiplier: Float, val label: String) {
-    SMALL(0.85f, "Small"),
-    DEFAULT(1f, "Default"),
-    LARGE(1.15f, "Large"),
-    EXTRA_LARGE(1.3f, "Extra Large");
+    SMALL(1f, "Small"),
+    DEFAULT(1.15f, "Default"),
+    LARGE(1.3f, "Large");
 
     companion object {
         fun fromMultiplier(value: Float): VerseTextScale =
