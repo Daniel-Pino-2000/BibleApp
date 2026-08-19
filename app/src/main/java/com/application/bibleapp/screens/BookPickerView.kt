@@ -7,11 +7,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +61,24 @@ fun BookPickerView(
             it.name.contains(searchText, ignoreCase = true)
         }
 
+        val listState = rememberLazyListState()
+
+        // Expanding a book that's near the bottom of the list (Revelation, being last,
+        // always is) pushes its ChapterGrid entirely below the viewport — there's no
+        // list content left below to make room, so the grid renders with nothing on
+        // screen showing it happened until the user scrolls down and discovers it.
+        // Scrolling the expanded book to the top of the viewport puts its grid right
+        // underneath, on screen, the same frame it appears.
+        LaunchedEffect(expandedBookId.value) {
+            val expandedId = expandedBookId.value ?: return@LaunchedEffect
+            val index = filteredBooks.indexOfFirst { it.id == expandedId }
+            if (index >= 0) {
+                listState.animateScrollToItem(index)
+            }
+        }
+
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize()
         ) {
             items(filteredBooks) { book ->
