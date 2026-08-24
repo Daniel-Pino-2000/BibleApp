@@ -1,44 +1,48 @@
 package com.application.bibleapp.screens
 
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.VerseGrid
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun VersePickerView(
     bibleViewModel: BibleViewModel,
+    bookId: Int,
+    chapter: Int,
     modifier: Modifier = Modifier,
     onBackClick: () -> Unit,
-    onVerseClicked: () -> Unit
+    onVerseClicked: (verse: Int) -> Unit
 ) {
 
+    val currentBook by bibleViewModel.currentBook.collectAsState()
+    val currentChapter by bibleViewModel.currentChapter.collectAsState()
+    val currentVerse by bibleViewModel.currentVerse.collectAsState()
+
+    // Only highlight a pre-selected verse if this is the chapter currently open on the
+    // reading screen — a freshly picked chapter has no verse "selected" yet.
+    val selectedVerse = if (bookId == currentBook && chapter == currentChapter) currentVerse else null
 
     Column(
-        modifier = modifier.fillMaxSize()
+        modifier = modifier
+            .fillMaxSize()
+            .padding(Spacing.lg)
     ) {
 
         VerseGrid(
-            bookId = bibleViewModel.currentBook.value,
-            chapterId = bibleViewModel.currentChapter.value
+            bookId = bookId,
+            chapterId = chapter,
+            selectedVerse = selectedVerse
         ) { verse -> // verse number return by the ItemGrid
-            bibleViewModel.setVerse(verse)
-            onVerseClicked()
+            onVerseClicked(verse)
         }
     }
 

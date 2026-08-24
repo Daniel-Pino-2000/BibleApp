@@ -2,24 +2,40 @@ package com.application.bibleapp.screens
 
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.outlined.SearchOff
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SuggestionChip
+import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.application.bibleapp.components.SearchBar
+import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 import androidx.compose.foundation.lazy.items
+
+/** A handful of common topics to search for before the user has typed anything themselves. */
+private val SUGGESTED_SEARCHES = listOf("love", "faith", "hope", "grace", "peace", "joy", "forgiveness")
 
 @Composable
 fun SearchView(
@@ -44,22 +60,124 @@ fun SearchView(
             placeholder = "Search Bible Verse"
         )
 
-        LazyColumn(
-            modifier = Modifier
-                .weight(1f)
-                .fillMaxWidth()
-        ) {
-            items(searchedVerses, key = { it.id ?: 0 }) { verse ->
-                Text(
-                    text = "${verse.verse} ${verse.text}",
-                    modifier = Modifier.clickable {
-                        onVerseClicked(verse.bookId!!, verse.chapter!!, verse.verse!!)
-                    }
-                )
-            }
+        when {
+            searchText.isBlank() -> SearchEmptyState(
+                onSuggestionClick = { keyword ->
+                    bibleViewModel.onSearchQueryChange(keyword)
+                    bibleViewModel.onSearchButtonClick()
+                }
+            )
+            searchedVerses.isEmpty() -> SearchNoResultsState(query = searchText)
+            else -> SearchResultsList(searchedVerses, onVerseClicked)
         }
     }
 
 
 
+}
+
+@Composable
+private fun SearchEmptyState(onSuggestionClick: (String) -> Unit) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.Search,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "Search for a verse, keyword, or reference",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.lg, bottom = Spacing.xl)
+        )
+        Text(
+            text = "Try one of these",
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(bottom = Spacing.sm)
+        )
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+        ) {
+            SUGGESTED_SEARCHES.forEach { keyword ->
+                SuggestionChip(
+                    onClick = { onSuggestionClick(keyword) },
+                    label = { Text(keyword) },
+                    colors = SuggestionChipDefaults.suggestionChipColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
+                        labelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SearchNoResultsState(query: String) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(Spacing.xl),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Outlined.SearchOff,
+            contentDescription = null,
+            modifier = Modifier.size(48.dp),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Text(
+            text = "No results for \"$query\"",
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = Spacing.lg)
+        )
+    }
+}
+
+@Composable
+private fun SearchResultsList(
+    searchedVerses: List<VerseUI>,
+    onVerseClicked: (bookId: Int, chapter: Int, verse: Int) -> Unit
+) {
+    LazyColumn(
+        modifier = Modifier
+            .fillMaxSize()
+    ) {
+        items(searchedVerses, key = { it.id ?: 0 }) { verse ->
+            val bookName = BibleBooks.getBookById(verse.bookId ?: 0)?.name ?: "Unknown"
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        onVerseClicked(verse.bookId!!, verse.chapter!!, verse.verse!!)
+                    }
+                    .padding(horizontal = Spacing.lg, vertical = Spacing.md)
+            ) {
+                Text(
+                    text = "$bookName ${verse.chapter}:${verse.verse}",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = verse.text,
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.padding(top = Spacing.xs)
+                )
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+        }
+    }
 }

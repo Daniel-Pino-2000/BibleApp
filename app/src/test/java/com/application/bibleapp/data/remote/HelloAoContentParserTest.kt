@@ -28,7 +28,9 @@ class HelloAoContentParserTest {
     }
 
     @Test
-    fun `line_break type items are skipped, only verse entries are extracted as verses`() {
+    fun `chapter-level line_break marks only the immediately following verse as a new paragraph`() {
+        // Real shape from BSB Genesis 1 — BSB never bakes a pilcrow into verse text; this
+        // standalone content[] entry is its only paragraph-break signal.
         val content = parseContent(
             """
             [
@@ -42,6 +44,8 @@ class HelloAoContentParserTest {
         val verses = HelloAoContentParser.extractVerses(content)
 
         assertEquals(listOf(1 to "Text one.", 2 to "Text two."), verses.map { it.number to it.plainText })
+        assertTrue("verse right after line_break starts a new paragraph", verses[0].richContent.runs[0].paragraphBreakBefore)
+        assertFalse("line_break must not carry over past the verse that claims it", verses[1].richContent.runs[0].paragraphBreakBefore)
     }
 
     @Test

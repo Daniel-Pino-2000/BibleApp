@@ -15,7 +15,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
+import com.application.bibleapp.ui.theme.Spacing
 
 @Composable
 fun SearchBar(
@@ -30,7 +30,7 @@ fun SearchBar(
         onValueChange = { onTextChange(it) },
         modifier = modifier
             .fillMaxWidth()
-            .padding(8.dp),
+            .padding(Spacing.sm),
         label = { Text(placeholder) },
         leadingIcon = {
             Icon(Icons.Default.Search, contentDescription = "Search Icon")

@@ -18,8 +18,10 @@ data class DownloadedVersionInfo(
         /**
          * Bump this whenever a download starts capturing genuinely new data (not just a
          * new way of rendering data already stored). 1 = plain text only. 2 = adds
-         * rich_content (red-letter/poems/headings) and the footnotes table.
+         * rich_content (red-letter/poems/headings) and the footnotes table. 3 = strips
+         * the leading pilcrow (¶) out of run text into [VerseRun.paragraphBreakBefore] —
+         * rows downloaded before this still carry the literal glyph in their text.
          */
-        const val CURRENT_DOWNLOAD_SCHEMA_VERSION = 2
+        const val CURRENT_DOWNLOAD_SCHEMA_VERSION = 3
     }
 }

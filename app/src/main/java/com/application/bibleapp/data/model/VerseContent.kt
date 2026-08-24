@@ -11,6 +11,13 @@ import kotlinx.serialization.json.Json
  * when a footnote marker immediately follows this run's text (stage 4) —
  * null for a run with no attached footnote, and for every run in content
  * downloaded before stage 4 (old rows just render with no marker).
+ *
+ * [paragraphBreakBefore] (stage 5) is `true` when this run's source text began
+ * with a pilcrow (¶) — the source API has no structured paragraph field; the
+ * pilcrow, baked into the plain text by this translation's own formatting, is
+ * the only paragraph signal that exists. The parser strips the glyph itself
+ * out of [text] and turns it into this flag instead. `false`/absent for every
+ * run parsed before stage 5.
  */
 @Serializable
 data class VerseRun(
@@ -18,7 +25,8 @@ data class VerseRun(
     val isWordsOfJesus: Boolean = false,
     val poemLevel: Int? = null,
     val lineBreakBefore: Boolean = false,
-    val footnoteId: Int? = null
+    val footnoteId: Int? = null,
+    val paragraphBreakBefore: Boolean = false
 )
 
 /** A heading or Hebrew subtitle that appears immediately before a verse. */

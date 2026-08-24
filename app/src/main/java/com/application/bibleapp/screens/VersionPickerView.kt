@@ -13,10 +13,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.application.bibleapp.data.model.BibleTranslation
+import com.application.bibleapp.data.model.DownloadedVersionInfo
+import com.application.bibleapp.data.model.SelectedBibleVersion
+import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 /**
@@ -28,6 +28,11 @@ import com.application.bibleapp.viewmodel.BibleViewModel
  *   "Update available" if [com.application.bibleapp.data.model.DownloadedVersionInfo.isUpToDate]
  *   is false) — `version.id` is a key in `downloadedVersions`.
  * - neither — tapping it downloads before switching.
+ *
+ * Downloaded translations are pulled out into their own "Downloaded" section at the
+ * top, regardless of language, so a user's already-available versions are never
+ * buried inside a language group they'd have to scroll to find. The language
+ * groups below only list the not-yet-downloaded translations for that language.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -60,11 +65,12 @@ fun VersionPickerView(
         if (error != null) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Failed to load versions", color = Color.Red)
+                    Text("Failed to load versions", color = MaterialTheme.colorScheme.error)
                     Text(
                         text = "Tap to retry",
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = Spacing.sm)
                             .clickable { bibleViewModel.loadAvailableVersions() }
                     )
                 }
@@ -78,8 +84,9 @@ fun VersionPickerView(
                     Text("No versions available")
                     Text(
                         text = "Tap to retry",
+                        color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .padding(top = 8.dp)
+                            .padding(top = Spacing.sm)
                             .clickable { bibleViewModel.loadAvailableVersions() }
                     )
                 }
@@ -92,7 +99,7 @@ fun VersionPickerView(
             onValueChange = bibleViewModel::onVersionSearchQueryChange,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = Spacing.lg, vertical = Spacing.sm),
             placeholder = { Text("Search by language or version") },
             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
             singleLine = true
@@ -100,9 +107,13 @@ fun VersionPickerView(
 
         // Download error banner
         downloadError?.let {
-            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)) {
-                Text(text = "Download failed: $it", color = Color.Red)
-                Text(text = "Tap a version below to retry", fontSize = 12.sp, color = Color.Gray)
+            Column(modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)) {
+                Text(text = "Download failed: $it", color = MaterialTheme.colorScheme.error)
+                Text(
+                    text = "Tap a version below to retry",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
 
@@ -111,8 +122,8 @@ fun VersionPickerView(
             Text(
                 text = it,
                 color = MaterialTheme.colorScheme.primary,
-                fontSize = 12.sp,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                style = MaterialTheme.typography.labelSmall,
+                modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.sm)
             )
         }
 
@@ -123,101 +134,172 @@ fun VersionPickerView(
             return@Column
         }
 
+        // Downloaded translations are pulled out of their language groups into one
+        // section up top (order preserved from the language-sorted groups, so it
+        // still reads alphabetically by language/name rather than by download time).
+        // Everything here is already search-filtered, since it's derived from
+        // groupedVersions rather than the raw availableVersions list.
+        val downloadedTranslations = groupedVersions
+            .flatMap { it.translations }
+            .filter { downloadedVersions.containsKey(it.id) }
+        val languageGroupsWithoutDownloaded = groupedVersions.mapNotNull { group ->
+            val remaining = group.translations.filterNot { downloadedVersions.containsKey(it.id) }
+            if (remaining.isEmpty()) null else group.copy(translations = remaining)
+        }
+
         LazyColumn {
-            groupedVersions.forEach { group ->
+            if (downloadedTranslations.isNotEmpty()) {
+                stickyHeader {
+                    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+                        Text(
+                            text = "Downloaded",
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+                        )
+                    }
+                }
+
+                items(downloadedTranslations, key = { it.id }) { version ->
+                    VersionRow(
+                        version = version,
+                        selectedVersion = selectedVersion,
+                        downloadingVersionId = downloadingVersionId,
+                        downloadProgress = downloadProgress,
+                        downloadedVersions = downloadedVersions,
+                        bibleViewModel = bibleViewModel,
+                        onVersionClicked = onVersionClicked
+                    )
+                }
+            }
+
+            languageGroupsWithoutDownloaded.forEach { group ->
                 stickyHeader {
                     Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                         Text(
                             text = group.languageName,
-                            fontWeight = FontWeight.Bold,
+                            style = MaterialTheme.typography.titleMedium,
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
                         )
                     }
                 }
 
                 items(group.translations, key = { it.id }) { version ->
-                    val isSelected = version.id == selectedVersion.id
-                    val isDownloading = version.id == downloadingVersionId
-                    val downloadInfoForVersion = downloadedVersions[version.id]
-                    val isDownloaded = downloadInfoForVersion != null
-                    val needsUpdate = downloadInfoForVersion != null && !downloadInfoForVersion.isUpToDate
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable(enabled = downloadingVersionId == null) {
-                                // Only leave this screen once the version is actually ready —
-                                // otherwise the download progress/error never gets seen. Tapping
-                                // the already-active version is a no-op (no re-fetch/re-switch),
-                                // it just finishes immediately and lets the caller dismiss the picker.
-                                bibleViewModel.selectVersion(version.id) { success ->
-                                    if (success) onVersionClicked()
-                                }
-                            }
-                            .padding(horizontal = 16.dp, vertical = 12.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = version.displayName)
-                            version.nativeName.takeIf { it.isNotBlank() && it != version.displayName }?.let { nativeName ->
-                                Text(text = nativeName, fontSize = 12.sp, color = Color.Gray)
-                            }
-                            if (needsUpdate) {
-                                Text(
-                                    text = "Update available — tap ⟳ for footnotes and formatting",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
-                            } else if (isDownloaded && !isSelected) {
-                                Text(text = "Downloaded", fontSize = 12.sp, color = Color.Gray)
-                            }
-                            if (isDownloading) {
-                                Spacer(modifier = Modifier.height(4.dp))
-                                LinearProgressIndicator(
-                                    progress = { downloadProgress },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                Text(
-                                    text = "${(downloadProgress * 100).toInt()}%",
-                                    fontSize = 12.sp,
-                                    color = Color.Gray
-                                )
-                            }
-                        }
-
-                        if (needsUpdate) {
-                            IconButton(
-                                enabled = downloadingVersionId == null,
-                                onClick = { bibleViewModel.redownloadVersion(version.id) }
-                            ) {
-                                Icon(
-                                    Icons.Default.Refresh,
-                                    contentDescription = "Re-download ${version.displayName} for footnotes and formatting added since it was downloaded"
-                                )
-                            }
-                        } else if (isDownloaded && !isSelected) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = "Already downloaded",
-                                tint = Color.Gray,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-
-                        if (isSelected) {
-                            Text(
-                                text = "✓",
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.padding(start = 8.dp)
-                            )
-                        }
-                    }
-
-                    HorizontalDivider()
+                    VersionRow(
+                        version = version,
+                        selectedVersion = selectedVersion,
+                        downloadingVersionId = downloadingVersionId,
+                        downloadProgress = downloadProgress,
+                        downloadedVersions = downloadedVersions,
+                        bibleViewModel = bibleViewModel,
+                        onVersionClicked = onVersionClicked
+                    )
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun VersionRow(
+    version: BibleTranslation,
+    selectedVersion: SelectedBibleVersion,
+    downloadingVersionId: String?,
+    downloadProgress: Float,
+    downloadedVersions: Map<String, DownloadedVersionInfo>,
+    bibleViewModel: BibleViewModel,
+    onVersionClicked: () -> Unit
+) {
+    val isSelected = version.id == selectedVersion.id
+    val isDownloading = version.id == downloadingVersionId
+    val downloadInfoForVersion = downloadedVersions[version.id]
+    val isDownloaded = downloadInfoForVersion != null
+    val needsUpdate = downloadInfoForVersion != null && !downloadInfoForVersion.isUpToDate
+
+    Column {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable(enabled = downloadingVersionId == null) {
+                    // Only leave this screen once the version is actually ready —
+                    // otherwise the download progress/error never gets seen. Tapping
+                    // the already-active version is a no-op (no re-fetch/re-switch),
+                    // it just finishes immediately and lets the caller dismiss the picker.
+                    bibleViewModel.selectVersion(version.id) { success ->
+                        if (success) onVersionClicked()
+                    }
+                }
+                .padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = version.displayName, style = MaterialTheme.typography.bodyLarge)
+                version.nativeName.takeIf { it.isNotBlank() && it != version.displayName }?.let { nativeName ->
+                    Text(
+                        text = nativeName,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (needsUpdate) {
+                    Text(
+                        text = "Update available — tap ⟳ for footnotes and formatting",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (isDownloaded && !isSelected) {
+                    Text(
+                        text = "Downloaded",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (isDownloading) {
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    LinearProgressIndicator(
+                        progress = { downloadProgress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "${(downloadProgress * 100).toInt()}%",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (needsUpdate) {
+                IconButton(
+                    enabled = downloadingVersionId == null,
+                    onClick = { bibleViewModel.redownloadVersion(version.id) }
+                ) {
+                    Icon(
+                        Icons.Default.Refresh,
+                        contentDescription = "Re-download ${version.displayName} for footnotes and formatting added since it was downloaded",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            } else if (isDownloaded && !isSelected) {
+                Icon(
+                    Icons.Default.CheckCircle,
+                    contentDescription = "Already downloaded",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(start = Spacing.sm)
+                )
+            }
+
+            if (isSelected) {
+                Text(
+                    text = "✓",
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(start = Spacing.sm)
+                )
+            }
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
