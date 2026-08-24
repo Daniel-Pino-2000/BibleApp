@@ -343,6 +343,10 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         _selectedVersion.value = SelectedBibleVersion(id = versionId)
         repository.saveSelectedVersion(versionId)
         loadChapter(_currentBook.value, _currentChapter.value)
+        // Re-resolve (not re-fetch) so the card matches the newly selected translation
+        // right away — the reference is already cached for today, so this is just a
+        // local chapter lookup, no network call.
+        loadVerseOfTheDay()
     }
 
     private fun refreshDownloadedVersions() {

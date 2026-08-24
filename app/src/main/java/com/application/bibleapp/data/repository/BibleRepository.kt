@@ -14,9 +14,29 @@ import com.application.bibleapp.data.remote.BibleRemoteDataSource
 import com.application.bibleapp.data.remote.DailyVerseDataSource
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
+import com.application.bibleapp.utils.NetworkUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.io.IOException
 import java.util.Calendar
+
+// -1 is never a valid Bible verse number, so it's a safe sentinel for "no end verse"
+// in SharedPreferences, which has no nullable-Int variant.
+internal const val NO_END_VERSE = -1
+
+/**
+ * Year + day-of-year rather than a full date format — this only needs to change once
+ * every 24h, not represent a real calendar date. Year is included so Dec 31 and the
+ * following Jan 1 (both day-of-year 1/365-ish in different years) never collide.
+ * A pure function of [now] so day-rollover behavior can be unit tested without faking
+ * the system clock.
+ */
+internal fun dailyVerseCacheKey(now: Calendar = Calendar.getInstance()): String =
+    "${now.get(Calendar.YEAR)}-${now.get(Calendar.DAY_OF_YEAR)}"
+
+internal fun encodeEndVerse(endVerse: Int?): Int = endVerse ?: NO_END_VERSE
+
+internal fun decodeEndVerse(stored: Int): Int? = stored.takeIf { it != NO_END_VERSE }
 
 /** The last book/chapter/verse the user had open, restored on app launch. */
 data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
@@ -59,13 +79,20 @@ class BibleRepository(
 
     /**
      * The daily verse reference, refetched at most once per calendar day (cached in
-     * [prefs]) so repeated app opens don't re-hit OurManna. Any failure from [daily]
-     * propagates to the caller — [BibleViewModel] decides the offline/error fallback.
+     * [prefs]) so repeated app opens don't re-hit OurManna. Skips the network call
+     * entirely when there's no connectivity, rather than waiting on a request that's
+     * bound to time out — [BibleViewModel] falls back to the local curated list either
+     * way, but this makes that fallback appear immediately instead of after a delay.
      */
     suspend fun getDailyVerse(): DailyVerseRef = withContext(Dispatchers.IO) {
-        val today = todayKey()
+        val today = dailyVerseCacheKey()
         val cached = if (prefs.getString(KEY_DAILY_VERSE_DATE, null) == today) readCachedDailyVerse() else null
-        cached ?: daily.getDailyVerse().also { cacheDailyVerse(today, it) }
+        if (cached != null) return@withContext cached
+
+        if (!NetworkUtils.isOnline(context)) {
+            throw IOException("No internet connection — skipping daily verse fetch")
+        }
+        daily.getDailyVerse().also { cacheDailyVerse(today, it) }
     }
 
     private fun readCachedDailyVerse(): DailyVerseRef? {
@@ -75,7 +102,7 @@ class BibleRepository(
             bookId = bookId,
             chapter = prefs.getInt(KEY_DAILY_VERSE_CHAPTER, 1),
             startVerse = prefs.getInt(KEY_DAILY_VERSE_START, 1),
-            endVerse = prefs.getInt(KEY_DAILY_VERSE_END, -1).takeIf { it != -1 }
+            endVerse = decodeEndVerse(prefs.getInt(KEY_DAILY_VERSE_END, NO_END_VERSE))
         )
     }
 
@@ -85,15 +112,8 @@ class BibleRepository(
             .putInt(KEY_DAILY_VERSE_BOOK, ref.bookId)
             .putInt(KEY_DAILY_VERSE_CHAPTER, ref.chapter)
             .putInt(KEY_DAILY_VERSE_START, ref.startVerse)
-            .putInt(KEY_DAILY_VERSE_END, ref.endVerse ?: -1)
+            .putInt(KEY_DAILY_VERSE_END, encodeEndVerse(ref.endVerse))
             .apply()
-    }
-
-    // Year + day-of-year rather than a full date format — this only needs to change
-    // once every 24h, not represent a real calendar date.
-    private fun todayKey(): String {
-        val cal = Calendar.getInstance()
-        return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
     }
 
     suspend fun getAllVersions(): List<BibleTranslation> = remote.getAvailableTranslations()
