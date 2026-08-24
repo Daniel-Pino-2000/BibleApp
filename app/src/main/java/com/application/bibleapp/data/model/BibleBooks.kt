@@ -35,8 +35,16 @@ object BibleBooks {
     /**
      * Get a book by its name (case-insensitive)
      */
-    fun getBookByName(name: String): BibleBook? =
-        allBooks.find { it.name.equals(name, ignoreCase = true) }
+    fun getBookByName(name: String): BibleBook? {
+        val normalizedName = when (name.lowercase()) {
+            "psalm" -> "Psalms"
+            else -> name
+        }
+
+        return allBooks.find {
+            it.name.equals(normalizedName, ignoreCase = true)
+        }
+    }
 
     /**
      * Get total number of chapters in a book

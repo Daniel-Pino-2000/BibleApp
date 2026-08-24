@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.application.bibleapp.data.model.BibleSourceType
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.remote.HelloAoBibleDataSource
+import com.application.bibleapp.data.remote.OurMannaBibleDataSource
 import com.application.bibleapp.data.repository.BibleRepository
 
 class BibleViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
@@ -15,7 +16,8 @@ class BibleViewModelFactory(private val context: Context) : ViewModelProvider.Fa
 
             val repository = BibleRepository(
                 context = context,
-                remote = HelloAoBibleDataSource()
+                remote = HelloAoBibleDataSource(),
+                daily = OurMannaBibleDataSource()
             )
 
             val viewModel = BibleViewModel(repository)

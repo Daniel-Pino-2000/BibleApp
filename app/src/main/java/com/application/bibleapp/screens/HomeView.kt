@@ -51,7 +51,7 @@ fun HomeView(
     ) {
         verseOfTheDay?.let { verse ->
             VerseOfTheDayCard(
-                reference = "${BibleBooks.getBookById(verse.bookId ?: 0)?.name ?: ""} ${verse.chapter}:${verse.verse}",
+                reference = verse.reference,
                 text = verse.text,
                 textScale = verseTextScale.multiplier
             )

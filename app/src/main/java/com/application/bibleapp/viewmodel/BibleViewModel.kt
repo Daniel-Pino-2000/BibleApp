@@ -5,11 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DEFAULT_VERSION
+import com.application.bibleapp.data.model.DailyVerseRef
+import com.application.bibleapp.data.model.DailyVerseUI
 import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseOfTheDay
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.resolveDailyVerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
 import com.application.bibleapp.data.repository.BibleRepository
@@ -108,8 +111,8 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     // Shown on Home — fetched independently of currentBook/currentChapter so it
     // doesn't disturb the user's actual reading position.
-    private val _verseOfTheDay = MutableStateFlow<VerseUI?>(null)
-    val verseOfTheDay: StateFlow<VerseUI?> = _verseOfTheDay.asStateFlow()
+    private val _verseOfTheDay = MutableStateFlow<DailyVerseUI?>(null)
+    val verseOfTheDay: StateFlow<DailyVerseUI?> = _verseOfTheDay.asStateFlow()
 
     // Locally downloaded versions, keyed by id, so the picker can badge "downloaded" /
     // "update available" without a DB query per row. Refreshed after every download.
@@ -146,12 +149,24 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         refreshDownloadedVersions()
     }
 
+    // Tries the remote daily-verse API first (cached once per day by the repository);
+    // falls back to the local curated list if the app is offline, the API is down, or
+    // it returns a reference this app can't resolve (unrecognized book name, verse not
+    // present in the currently selected translation, etc.) — this must never throw, so
+    // the Home screen always has something to show instead of crashing on launch.
     private fun loadVerseOfTheDay() {
         viewModelScope.launch {
-            val ref = VerseOfTheDay.forToday()
-            val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, _selectedVersion.value.id)
-            _verseOfTheDay.value = chapterVerses.firstOrNull { it.verse == ref.verse }
+            val remoteVerse = runCatching { repository.getDailyVerse() }
+                .mapCatching { ref -> resolveVerse(ref) ?: error("Reference not found: $ref") }
+                .getOrNull()
+            _verseOfTheDay.value = remoteVerse ?: resolveVerse(VerseOfTheDay.forToday())
         }
+    }
+
+    private suspend fun resolveVerse(ref: DailyVerseRef): DailyVerseUI? {
+        val bookName = BibleBooks.getBookById(ref.bookId)?.name ?: return null
+        val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, _selectedVersion.value.id)
+        return resolveDailyVerseUI(bookName, ref, chapterVerses)
     }
 
     fun loadChapter(bookId: Int, chapterId: Int, verseId: Int = 1) {

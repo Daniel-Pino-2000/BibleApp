@@ -5,15 +5,18 @@ import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.local.VersionDownloadSummary
 import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DEFAULT_VERSION
+import com.application.bibleapp.data.model.DailyVerseRef
 import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleRemoteDataSource
+import com.application.bibleapp.data.remote.DailyVerseDataSource
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.util.Calendar
 
 /** The last book/chapter/verse the user had open, restored on app launch. */
 data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
@@ -29,7 +32,8 @@ data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
  */
 class BibleRepository(
     private val context: Context,
-    private val remote: BibleRemoteDataSource
+    private val remote: BibleRemoteDataSource,
+    private val daily: DailyVerseDataSource
 ) {
     private val prefs by lazy {
         context.applicationContext.getSharedPreferences("bible_prefs", Context.MODE_PRIVATE)
@@ -52,6 +56,45 @@ class BibleRepository(
             if (query.isBlank()) emptyList()
             else BibleDatabaseManager.searchVerses(query, versionId)
         }
+
+    /**
+     * The daily verse reference, refetched at most once per calendar day (cached in
+     * [prefs]) so repeated app opens don't re-hit OurManna. Any failure from [daily]
+     * propagates to the caller — [BibleViewModel] decides the offline/error fallback.
+     */
+    suspend fun getDailyVerse(): DailyVerseRef = withContext(Dispatchers.IO) {
+        val today = todayKey()
+        val cached = if (prefs.getString(KEY_DAILY_VERSE_DATE, null) == today) readCachedDailyVerse() else null
+        cached ?: daily.getDailyVerse().also { cacheDailyVerse(today, it) }
+    }
+
+    private fun readCachedDailyVerse(): DailyVerseRef? {
+        val bookId = prefs.getInt(KEY_DAILY_VERSE_BOOK, -1)
+        if (bookId == -1) return null
+        return DailyVerseRef(
+            bookId = bookId,
+            chapter = prefs.getInt(KEY_DAILY_VERSE_CHAPTER, 1),
+            startVerse = prefs.getInt(KEY_DAILY_VERSE_START, 1),
+            endVerse = prefs.getInt(KEY_DAILY_VERSE_END, -1).takeIf { it != -1 }
+        )
+    }
+
+    private fun cacheDailyVerse(today: String, ref: DailyVerseRef) {
+        prefs.edit()
+            .putString(KEY_DAILY_VERSE_DATE, today)
+            .putInt(KEY_DAILY_VERSE_BOOK, ref.bookId)
+            .putInt(KEY_DAILY_VERSE_CHAPTER, ref.chapter)
+            .putInt(KEY_DAILY_VERSE_START, ref.startVerse)
+            .putInt(KEY_DAILY_VERSE_END, ref.endVerse ?: -1)
+            .apply()
+    }
+
+    // Year + day-of-year rather than a full date format — this only needs to change
+    // once every 24h, not represent a real calendar date.
+    private fun todayKey(): String {
+        val cal = Calendar.getInstance()
+        return "${cal.get(Calendar.YEAR)}-${cal.get(Calendar.DAY_OF_YEAR)}"
+    }
 
     suspend fun getAllVersions(): List<BibleTranslation> = remote.getAvailableTranslations()
 
@@ -131,5 +174,10 @@ class BibleRepository(
         const val KEY_READING_BOOK = "reading_book_id"
         const val KEY_READING_CHAPTER = "reading_chapter"
         const val KEY_READING_VERSE = "reading_verse"
+        const val KEY_DAILY_VERSE_DATE = "daily_verse_date"
+        const val KEY_DAILY_VERSE_BOOK = "daily_verse_book_id"
+        const val KEY_DAILY_VERSE_CHAPTER = "daily_verse_chapter"
+        const val KEY_DAILY_VERSE_START = "daily_verse_start"
+        const val KEY_DAILY_VERSE_END = "daily_verse_end"
     }
 }
