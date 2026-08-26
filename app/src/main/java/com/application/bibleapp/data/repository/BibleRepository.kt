@@ -15,31 +15,25 @@ import com.application.bibleapp.data.remote.DailyVerseDataSource
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import com.application.bibleapp.utils.NetworkUtils
+import com.application.bibleapp.worker.DailyVerseScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.IOException
 import java.util.Calendar
 
-// -1 is never a valid Bible verse number, so it's a safe sentinel for "no end verse"
-// in SharedPreferences, which has no nullable-Int variant.
-internal const val NO_END_VERSE = -1
-
 /**
- * Year + day-of-year rather than a full date format — this only needs to change once
- * every 24h, not represent a real calendar date. Year is included so Dec 31 and the
- * following Jan 1 (both day-of-year 1/365-ish in different years) never collide.
- * A pure function of [now] so day-rollover behavior can be unit tested without faking
- * the system clock.
+ * Year + day-of-year — descriptive metadata only (which day a cached row was fetched
+ * for), not used to decide cache hit/miss: freshness is [DailyVerseFetchWorker]'s job
+ * now, this is just what gets stamped on the row when it writes one.
  */
-internal fun dailyVerseCacheKey(now: Calendar = Calendar.getInstance()): String =
+internal fun dailyVerseDateKey(now: Calendar = Calendar.getInstance()): String =
     "${now.get(Calendar.YEAR)}-${now.get(Calendar.DAY_OF_YEAR)}"
-
-internal fun encodeEndVerse(endVerse: Int?): Int = endVerse ?: NO_END_VERSE
-
-internal fun decodeEndVerse(stored: Int): Int? = stored.takeIf { it != NO_END_VERSE }
 
 /** The last book/chapter/verse the user had open, restored on app launch. */
 data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
+
+/** The user's chosen local wall-clock time for the daily verse reminder. */
+data class NotificationTime(val hour: Int, val minute: Int)
 
 /**
  * Sits between [BibleViewModel][com.application.bibleapp.viewmodel.BibleViewModel] and
@@ -78,42 +72,59 @@ class BibleRepository(
         }
 
     /**
-     * The daily verse reference, refetched at most once per calendar day (cached in
-     * [prefs]) so repeated app opens don't re-hit OurManna. Skips the network call
-     * entirely when there's no connectivity, rather than waiting on a request that's
-     * bound to time out — [BibleViewModel] falls back to the local curated list either
-     * way, but this makes that fallback appear immediately instead of after a delay.
+     * Reads the reference [DailyVerseFetchWorker][com.application.bibleapp.worker.DailyVerseFetchWorker]
+     * cached in the local DB — a plain read, no network involved. Falls back to a
+     * direct (uncached) [refreshDailyVerse] only if nothing has been cached yet, e.g.
+     * right after install before the background worker's first run.
      */
     suspend fun getDailyVerse(): DailyVerseRef = withContext(Dispatchers.IO) {
-        val today = dailyVerseCacheKey()
-        val cached = if (prefs.getString(KEY_DAILY_VERSE_DATE, null) == today) readCachedDailyVerse() else null
-        if (cached != null) return@withContext cached
+        BibleDatabaseManager.getCachedDailyVerse(context) ?: refreshDailyVerse()
+    }
 
+    /**
+     * Always fetches fresh from [daily] and overwrites the cached row — this is what
+     * the daily background worker calls to replace the previous day's verse. Skips the
+     * network call entirely when there's no connectivity rather than waiting on a
+     * request that's bound to time out.
+     */
+    suspend fun refreshDailyVerse(): DailyVerseRef = withContext(Dispatchers.IO) {
         if (!NetworkUtils.isOnline(context)) {
             throw IOException("No internet connection — skipping daily verse fetch")
         }
-        daily.getDailyVerse().also { cacheDailyVerse(today, it) }
+        val fetched = daily.getDailyVerse()
+        BibleDatabaseManager.saveCachedDailyVerse(context, dailyVerseDateKey(), fetched)
+        fetched
     }
 
-    private fun readCachedDailyVerse(): DailyVerseRef? {
-        val bookId = prefs.getInt(KEY_DAILY_VERSE_BOOK, -1)
-        if (bookId == -1) return null
-        return DailyVerseRef(
-            bookId = bookId,
-            chapter = prefs.getInt(KEY_DAILY_VERSE_CHAPTER, 1),
-            startVerse = prefs.getInt(KEY_DAILY_VERSE_START, 1),
-            endVerse = decodeEndVerse(prefs.getInt(KEY_DAILY_VERSE_END, NO_END_VERSE))
-        )
+    fun isNotificationEnabled(): Boolean = prefs.getBoolean(KEY_NOTIFICATION_ENABLED, false)
+
+    fun loadNotificationTime(): NotificationTime = NotificationTime(
+        hour = prefs.getInt(KEY_NOTIFICATION_HOUR, DEFAULT_NOTIFICATION_HOUR),
+        minute = prefs.getInt(KEY_NOTIFICATION_MINUTE, DEFAULT_NOTIFICATION_MINUTE)
+    )
+
+    /** Persists the toggle and (de)schedules the reminder worker in the same place — the
+     *  ViewModel/UI never has to remember to do both. */
+    fun setNotificationEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_NOTIFICATION_ENABLED, enabled).apply()
+        if (enabled) {
+            val time = loadNotificationTime()
+            DailyVerseScheduler.scheduleNotification(context, time.hour, time.minute)
+        } else {
+            DailyVerseScheduler.cancelNotification(context)
+        }
     }
 
-    private fun cacheDailyVerse(today: String, ref: DailyVerseRef) {
+    /** No-ops on the schedule if the reminder is currently off — it'll pick up the new time
+     *  whenever it's next turned on. */
+    fun setNotificationTime(hour: Int, minute: Int) {
         prefs.edit()
-            .putString(KEY_DAILY_VERSE_DATE, today)
-            .putInt(KEY_DAILY_VERSE_BOOK, ref.bookId)
-            .putInt(KEY_DAILY_VERSE_CHAPTER, ref.chapter)
-            .putInt(KEY_DAILY_VERSE_START, ref.startVerse)
-            .putInt(KEY_DAILY_VERSE_END, encodeEndVerse(ref.endVerse))
+            .putInt(KEY_NOTIFICATION_HOUR, hour)
+            .putInt(KEY_NOTIFICATION_MINUTE, minute)
             .apply()
+        if (isNotificationEnabled()) {
+            DailyVerseScheduler.scheduleNotification(context, hour, minute)
+        }
     }
 
     suspend fun getAllVersions(): List<BibleTranslation> = remote.getAvailableTranslations()
@@ -194,10 +205,10 @@ class BibleRepository(
         const val KEY_READING_BOOK = "reading_book_id"
         const val KEY_READING_CHAPTER = "reading_chapter"
         const val KEY_READING_VERSE = "reading_verse"
-        const val KEY_DAILY_VERSE_DATE = "daily_verse_date"
-        const val KEY_DAILY_VERSE_BOOK = "daily_verse_book_id"
-        const val KEY_DAILY_VERSE_CHAPTER = "daily_verse_chapter"
-        const val KEY_DAILY_VERSE_START = "daily_verse_start"
-        const val KEY_DAILY_VERSE_END = "daily_verse_end"
+        const val KEY_NOTIFICATION_ENABLED = "notification_enabled"
+        const val KEY_NOTIFICATION_HOUR = "notification_hour"
+        const val KEY_NOTIFICATION_MINUTE = "notification_minute"
+        const val DEFAULT_NOTIFICATION_HOUR = 8
+        const val DEFAULT_NOTIFICATION_MINUTE = 0
     }
 }

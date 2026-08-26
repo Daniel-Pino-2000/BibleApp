@@ -16,6 +16,7 @@ import com.application.bibleapp.data.model.resolveDailyVerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
 import com.application.bibleapp.data.repository.BibleRepository
+import com.application.bibleapp.data.repository.NotificationTime
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -113,6 +114,12 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     // doesn't disturb the user's actual reading position.
     private val _verseOfTheDay = MutableStateFlow<DailyVerseUI?>(null)
     val verseOfTheDay: StateFlow<DailyVerseUI?> = _verseOfTheDay.asStateFlow()
+
+    private val _notificationEnabled = MutableStateFlow(repository.isNotificationEnabled())
+    val notificationEnabled: StateFlow<Boolean> = _notificationEnabled.asStateFlow()
+
+    private val _notificationTime = MutableStateFlow(repository.loadNotificationTime())
+    val notificationTime: StateFlow<NotificationTime> = _notificationTime.asStateFlow()
 
     // Locally downloaded versions, keyed by id, so the picker can badge "downloaded" /
     // "update available" without a DB query per row. Refreshed after every download.
@@ -251,6 +258,18 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     fun setVerseTextScale(scale: VerseTextScale) {
         _verseTextScale.value = scale
         repository.saveVerseTextScale(scale)
+    }
+
+    /** Persisting the flag also (de)schedules the reminder worker — see
+     *  [BibleRepository.setNotificationEnabled]. */
+    fun setNotificationEnabled(enabled: Boolean) {
+        _notificationEnabled.value = enabled
+        repository.setNotificationEnabled(enabled)
+    }
+
+    fun setNotificationTime(hour: Int, minute: Int) {
+        _notificationTime.value = NotificationTime(hour, minute)
+        repository.setNotificationTime(hour, minute)
     }
 
     fun loadAvailableVersions() {

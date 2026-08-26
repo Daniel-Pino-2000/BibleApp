@@ -4,6 +4,7 @@ import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.util.Log
 import com.application.bibleapp.data.model.BibleVerse
+import com.application.bibleapp.data.model.DailyVerseRef
 import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.VerseUI
@@ -153,7 +154,57 @@ object BibleDatabaseManager {
             """.trimIndent()
         )
 
+        // Single-row cache of the daily-verse reference, refreshed once a day by
+        // DailyVerseFetchWorker and read by the Home screen instead of hitting the
+        // remote API on every open. `CHECK (id = 0)` enforces at the DB level that
+        // this table can only ever hold one row — the "replace, don't accumulate"
+        // upsert the daily verse feature needs. end_verse is a real nullable column
+        // (SQLite supports NULL natively), so no SharedPreferences-style sentinel
+        // value is needed here the way one was for the old int-based cache.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS daily_verse_cache (
+                id INTEGER PRIMARY KEY CHECK (id = 0),
+                date_key TEXT NOT NULL,
+                book_id INTEGER NOT NULL,
+                chapter INTEGER NOT NULL,
+                start_verse INTEGER NOT NULL,
+                end_verse INTEGER
+            )
+            """.trimIndent()
+        )
+
         Log.d("BibleDB", "Downloaded versions/verses/footnotes tables ready")
+    }
+
+    /** Overwrites the cached daily-verse reference — always a single row, replaced wholesale. */
+    fun saveCachedDailyVerse(context: Context, dateKey: String, ref: DailyVerseRef) {
+        val db = getDatabase(context)
+        db.execSQL(
+            """
+            INSERT OR REPLACE INTO daily_verse_cache (id, date_key, book_id, chapter, start_verse, end_verse)
+            VALUES (0, ?, ?, ?, ?, ?)
+            """.trimIndent(),
+            arrayOf(dateKey, ref.bookId, ref.chapter, ref.startVerse, ref.endVerse)
+        )
+    }
+
+    /** The cached daily-verse reference, or null if the background worker hasn't populated it yet. */
+    fun getCachedDailyVerse(context: Context): DailyVerseRef? {
+        val db = getDatabase(context)
+        val cursor = db.rawQuery(
+            "SELECT book_id, chapter, start_verse, end_verse FROM daily_verse_cache WHERE id = 0",
+            null
+        )
+        return cursor.use {
+            if (!it.moveToFirst()) return@use null
+            DailyVerseRef(
+                bookId = it.getInt(0),
+                chapter = it.getInt(1),
+                startVerse = it.getInt(2),
+                endVerse = if (it.isNull(3)) null else it.getInt(3)
+            )
+        }
     }
 
     /**
