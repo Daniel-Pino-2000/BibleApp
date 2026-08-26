@@ -2,6 +2,7 @@ package com.application.bibleapp.screens
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -20,10 +21,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.ChapterGrid
 import com.application.bibleapp.components.SearchBar
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.newTestamentBooks
 import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
@@ -94,6 +97,13 @@ fun BookPickerView(
             items(filteredBooks) { book ->
                 val isExpanded = expandedBookId.value == book.id
 
+                // Mark where the New Testament begins so the otherwise-uniform
+                // list of book names gives the reader a sense of where they are,
+                // the way a printed Bible's edge often does.
+                if (book.id == newTestamentBooks.first().id) {
+                    TestamentDivider(label = "New Testament")
+                }
+
                 Text(
                     text = book.name,
                     style = MaterialTheme.typography.bodyLarge,
@@ -124,5 +134,35 @@ fun BookPickerView(
 
         }
 
+    }
+}
+
+/**
+ * Slim "· label ·" rule used to mark the Old/New Testament boundary in the
+ * book list. Kept as its own composable, rather than inline, so the label
+ * text can be reused if another section boundary is ever added.
+ */
+@Composable
+private fun TestamentDivider(label: String) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.lg, vertical = Spacing.sm)
+    ) {
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outline
+        )
+        Text(
+            text = label.uppercase(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.padding(horizontal = Spacing.sm)
+        )
+        HorizontalDivider(
+            modifier = Modifier.weight(1f),
+            color = MaterialTheme.colorScheme.outline
+        )
     }
 }
