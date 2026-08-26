@@ -17,6 +17,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -61,7 +62,16 @@ fun BookPickerView(
             it.name.contains(searchText, ignoreCase = true)
         }
 
-        val listState = rememberLazyListState()
+        // Open the list already scrolled to the book being read, instead of
+        // animating to it after the first (top-of-list) frame is visible —
+        // that animation is what caused the visible "jump" before the user
+        // could interact with the screen. initialFirstVisibleItemIndex is
+        // read once, when the state is created, so this only positions the
+        // list on entry and never fights the user's own scrolling.
+        val initialBookIndex = remember {
+            BibleBooks.allBooks.indexOfFirst { it.id == currentBook }.coerceAtLeast(0)
+        }
+        val listState = rememberLazyListState(initialFirstVisibleItemIndex = initialBookIndex)
 
         // The last book in the list (Revelation, normally) has no list content
         // below it to push down and make room when its grid expands, so the grid
