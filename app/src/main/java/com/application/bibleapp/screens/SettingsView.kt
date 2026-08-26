@@ -1,8 +1,13 @@
 package com.application.bibleapp.screens
 
 import android.Manifest
+import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
 import android.text.format.DateFormat
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -38,8 +44,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.application.bibleapp.ui.theme.ReadingStyle
 import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.ui.theme.ThemeMode
@@ -166,6 +175,37 @@ fun SettingsView(
                         modifier = Modifier.padding(Spacing.md)
                     )
                 }
+
+                // Passive nudge, not an automatic system prompt: Play policy reserves the
+                // "ignore battery optimizations" dialog for apps whose core function needs
+                // guaranteed background execution, which a devotional reminder isn't. This
+                // just points the user at the OS's own App Info screen and lets them decide
+                // whether to grant it — re-checked on resume so it disappears on its own
+                // once they've turned it on there.
+                var batteryUnrestricted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+                val lifecycleOwner = LocalLifecycleOwner.current
+                DisposableEffect(lifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            batteryUnrestricted = isIgnoringBatteryOptimizations(context)
+                        }
+                    }
+                    lifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+                }
+
+                if (!batteryUnrestricted) {
+                    Text(
+                        text = "Reminders arriving late or not at all? Some phones restrict " +
+                            "background apps — tap to check your battery settings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openAppSettings(context) }
+                            .padding(top = Spacing.sm)
+                    )
+                }
             }
 
             if (showTimePicker) {
@@ -225,4 +265,19 @@ private fun formatNotificationTime(hour: Int, minute: Int, is24Hour: Boolean): S
     val displayHour = when (val h = hour % 12) { 0 -> 12; else -> h }
     val period = if (hour < 12) "AM" else "PM"
     return "%d:%02d %s".format(displayHour, minute, period)
+}
+
+private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
+    val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+/** Opens this app's own App Info screen (has a "Battery" entry on every OEM skin) rather
+ *  than requesting ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS directly — the user takes
+ *  the final step themselves instead of the app auto-prompting for the exemption. */
+private fun openAppSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = Uri.fromParts("package", context.packageName, null)
+    }
+    context.startActivity(intent)
 }
