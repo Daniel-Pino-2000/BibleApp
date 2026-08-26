@@ -1,0 +1,12 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Simple open-book silhouette. Notification icons must be a plain white shape on a
+         transparent background: the system force-tints/masks it, so this fill color is
+         never actually shown, but white plus alpha is the required convention. -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M12,4 L2,7 L2,20 L12,17 Z M12,4 L22,7 L22,20 L12,17 Z" />
+</vector>

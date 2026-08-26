@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Word of Peace - Bible App</string>
     <string name="app_short_name">Bible</string>
+    <string name="daily_verse_notification_title">Verse of the Day</string>
 </resources>

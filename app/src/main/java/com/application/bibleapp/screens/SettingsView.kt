@@ -159,7 +159,9 @@ fun SettingsView(
                     color = MaterialTheme.colorScheme.surfaceVariant
                 ) {
                     Text(
-                        text = "Send at %02d:%02d".format(notificationTime.hour, notificationTime.minute),
+                        text = "Send at " + formatNotificationTime(
+                            notificationTime.hour, notificationTime.minute, DateFormat.is24HourFormat(context)
+                        ),
                         style = MaterialTheme.typography.bodyMedium,
                         modifier = Modifier.padding(Spacing.md)
                     )
@@ -214,4 +216,13 @@ private fun SettingsSection(
         )
         content()
     }
+}
+
+/** "8:05 AM" when the device uses a 12-hour clock, "08:05" when it uses 24-hour —
+ *  matches [DateFormat.is24HourFormat] rather than hardcoding either format. */
+private fun formatNotificationTime(hour: Int, minute: Int, is24Hour: Boolean): String {
+    if (is24Hour) return "%02d:%02d".format(hour, minute)
+    val displayHour = when (val h = hour % 12) { 0 -> 12; else -> h }
+    val period = if (hour < 12) "AM" else "PM"
+    return "%d:%02d %s".format(displayHour, minute, period)
 }
