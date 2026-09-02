@@ -55,16 +55,25 @@ object DailyVerseScheduler {
     }
 
     /**
-     * Always REPLACE: called both when the user changes their reminder time in Settings
-     * (must supersede the old schedule) and by the worker re-enqueueing itself for
-     * tomorrow (same reasoning as [scheduleDailyFetch]'s REPLACE case).
+     * [policy] defaults to REPLACE: used both when the user changes their reminder time
+     * in Settings (must supersede the old schedule) and by the worker re-enqueueing
+     * itself for tomorrow (same reasoning as [scheduleDailyFetch]'s REPLACE case). The
+     * app-startup safety net (see [com.application.bibleapp.BibleApplication]) passes
+     * KEEP instead, for the same reason [scheduleDailyFetch] does: re-arm the job if
+     * it's gone missing (an OEM battery manager or Doze-restricted standby bucket can
+     * silently drop a pending WorkManager job) without disturbing one already pending.
      */
-    fun scheduleNotification(context: Context, hour: Int, minute: Int) {
+    fun scheduleNotification(
+        context: Context,
+        hour: Int,
+        minute: Int,
+        policy: ExistingWorkPolicy = ExistingWorkPolicy.REPLACE
+    ) {
         val request = OneTimeWorkRequestBuilder<DailyVerseNotificationWorker>()
             .setInitialDelay(delayUntilNext(hour, minute), TimeUnit.MILLISECONDS)
             .build()
         WorkManager.getInstance(context)
-            .enqueueUniqueWork(NOTIFICATION_WORK_NAME, ExistingWorkPolicy.REPLACE, request)
+            .enqueueUniqueWork(NOTIFICATION_WORK_NAME, policy, request)
     }
 
     fun cancelNotification(context: Context) {
