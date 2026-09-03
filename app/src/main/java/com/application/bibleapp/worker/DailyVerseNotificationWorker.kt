@@ -5,6 +5,7 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.util.Log
 import androidx.core.app.ActivityCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -13,6 +14,8 @@ import androidx.work.WorkerParameters
 import com.application.bibleapp.MainActivity
 import com.application.bibleapp.R
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.DailyVerseRef
+import com.application.bibleapp.data.model.DailyVerseUI
 import com.application.bibleapp.data.model.VerseOfTheDay
 import com.application.bibleapp.data.model.resolveDailyVerseUI
 import com.application.bibleapp.data.remote.HelloAoBibleDataSource
@@ -39,11 +42,20 @@ class DailyVerseNotificationWorker(
         )
 
         if (repository.isNotificationEnabled()) {
-            val time = repository.loadNotificationTime()
+            // Post first, reschedule last: scheduleNotification() re-enqueues tomorrow's
+            // occurrence under this same unique work name with ExistingWorkPolicy.REPLACE,
+            // which cancels any existing work under that name — including *this
+            // currently-running instance*. Calling it before postNotification() raced
+            // that self-cancellation against actually posting the notification: on a
+            // warm/foreground run postNotification() usually won, but on a cold
+            // background start (DB open, class loading, etc.) the cancellation could
+            // land first and the notification silently never posted. Doing it last
+            // avoids the race entirely — there's nothing left to interrupt afterward.
+            postNotification(repository)
             // Read fresh each run (not the value at schedule time) so a time change in
             // Settings takes effect starting with the very next notification.
+            val time = repository.loadNotificationTime()
             DailyVerseScheduler.scheduleNotification(applicationContext, time.hour, time.minute)
-            postNotification(repository)
         }
         return Result.success()
     }
@@ -53,14 +65,25 @@ class DailyVerseNotificationWorker(
                 applicationContext, Manifest.permission.POST_NOTIFICATIONS
             ) != PackageManager.PERMISSION_GRANTED
         ) {
-            return // user turned the OS permission off after enabling the setting
+            Log.w(TAG, "POST_NOTIFICATIONS revoked after the reminder was enabled — skipping")
+            return
         }
 
         val versionId = repository.loadSelectedVersion()
         val ref = runCatching { repository.getDailyVerse() }.getOrElse { VerseOfTheDay.forToday() }
-        val bookName = BibleBooks.getBookById(ref.bookId)?.name ?: return
-        val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, versionId)
-        val verse = resolveDailyVerseUI(bookName, ref, chapterVerses) ?: return
+
+        // The cached/fallback ref is resolved against whatever the *chosen* translation
+        // has locally, which can legitimately be missing it (not downloaded, deleted
+        // since, or a partial-canon translation that never covers that book) — in which
+        // case this would otherwise post nothing at all, silently, forever. KJV is
+        // bundled and always has the full canon, so it's a fallback that's guaranteed to
+        // resolve for any ref this app itself produces.
+        val verse = resolveVerse(repository, ref, versionId)
+            ?: resolveVerse(repository, VerseOfTheDay.forToday(), "kjv")
+        if (verse == null) {
+            Log.w(TAG, "Could not resolve daily verse (ref=$ref, version=$versionId) even with KJV fallback")
+            return
+        }
 
         // FLAG_ACTIVITY_CLEAR_TASK, not just NEW_TASK: MainActivity has no launchMode
         // override, so without CLEAR_TASK a plain NEW_TASK intent would just bring the
@@ -97,7 +120,14 @@ class DailyVerseNotificationWorker(
         NotificationManagerCompat.from(applicationContext).notify(NOTIFICATION_ID, notification)
     }
 
+    private suspend fun resolveVerse(repository: BibleRepository, ref: DailyVerseRef, versionId: String): DailyVerseUI? {
+        val bookName = BibleBooks.getBookById(ref.bookId)?.name ?: return null
+        val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, versionId)
+        return resolveDailyVerseUI(bookName, ref, chapterVerses)
+    }
+
     private companion object {
+        const val TAG = "DailyVerseNotifWorker"
         const val NOTIFICATION_ID = 1001
 
         // Matches ui/theme/Color.kt's LightPrimary, so the notification reads as part of

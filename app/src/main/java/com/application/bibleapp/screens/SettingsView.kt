@@ -1,6 +1,7 @@
 package com.application.bibleapp.screens
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -183,18 +184,37 @@ fun SettingsView(
                 // whether to grant it — re-checked on resume so it disappears on its own
                 // once they've turned it on there.
                 var batteryUnrestricted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
+                // A separate, stricter OS-level toggle from battery optimization ("Restrict
+                // background usage" in App Info, or an OEM's own "sleeping apps" equivalent
+                // on top of it): when set, WorkManager's queued jobs simply don't run until
+                // the app is opened again, which is exactly "reminder works while the app is
+                // open, never fires once it's closed" — this app's actual reported symptom.
+                var backgroundRestricted by remember { mutableStateOf(isBackgroundRestricted(context)) }
                 val lifecycleOwner = LocalLifecycleOwner.current
                 DisposableEffect(lifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
                             batteryUnrestricted = isIgnoringBatteryOptimizations(context)
+                            backgroundRestricted = isBackgroundRestricted(context)
                         }
                     }
                     lifecycleOwner.lifecycle.addObserver(observer)
                     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
                 }
 
-                if (!batteryUnrestricted) {
+                if (backgroundRestricted) {
+                    Text(
+                        text = "Background activity is restricted for this app, so the " +
+                            "reminder can only fire while the app is open — tap to turn " +
+                            "that off in Settings.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { openAppSettings(context) }
+                            .padding(top = Spacing.sm)
+                    )
+                } else if (!batteryUnrestricted) {
                     Text(
                         text = "Reminders arriving late or not at all? Some phones restrict " +
                             "background apps — tap to check your battery settings.",
@@ -270,6 +290,13 @@ private fun formatNotificationTime(hour: Int, minute: Int, is24Hour: Boolean): S
 private fun isIgnoringBatteryOptimizations(context: Context): Boolean {
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+/** API 28+ only; below that OS-level background restriction doesn't exist as a user toggle. */
+private fun isBackgroundRestricted(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+    val activityManager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+    return activityManager.isBackgroundRestricted
 }
 
 /** Opens this app's own App Info screen (has a "Battery" entry on every OEM skin) rather
