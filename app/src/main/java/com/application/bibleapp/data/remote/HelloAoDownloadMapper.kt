@@ -11,6 +11,8 @@ object HelloAoDownloadMapper {
     data class MappingResult(
         val verses: List<MappedVerse>,
         val footnotes: List<MappedFootnote>,
+        val bookNames: List<MappedBookName>,
+        val chapterInfo: List<MappedChapterInfo>,
         val downloadedChapterCount: Int,
         val skippedBookCount: Int
     )
@@ -25,6 +27,8 @@ object HelloAoDownloadMapper {
     fun map(complete: HelloAoCompleteTranslationDto): MappingResult {
         val verses = mutableListOf<MappedVerse>()
         val footnotes = mutableListOf<MappedFootnote>()
+        val bookNames = mutableListOf<MappedBookName>()
+        val chapterInfo = mutableListOf<MappedChapterInfo>()
         var skippedBooks = 0
         var chapterCount = 0
 
@@ -34,10 +38,23 @@ object HelloAoDownloadMapper {
                 return@forEach
             }
 
+            bookNames += MappedBookName(bookId = book.order, name = book.name)
+
             book.chapters.forEach { chapterEntry ->
                 chapterCount++
                 val chapterNumber = chapterEntry.chapter.number
-                HelloAoContentParser.extractVerses(chapterEntry.chapter.content).forEach { parsedVerse ->
+                val parsedVerses = HelloAoContentParser.extractVerses(chapterEntry.chapter.content)
+
+                // The highest verse *number* seen, not just how many verses were parsed —
+                // a translation that combines verses (e.g. renders 15-16 as one verse
+                // numbered 15) would otherwise under-count and clip the verse-number grid.
+                chapterInfo += MappedChapterInfo(
+                    bookId = book.order,
+                    chapter = chapterNumber,
+                    verseCount = parsedVerses.maxOfOrNull { it.number } ?: 0
+                )
+
+                parsedVerses.forEach { parsedVerse ->
                     verses += MappedVerse(
                         bookId = book.order,
                         chapter = chapterNumber,
@@ -62,6 +79,8 @@ object HelloAoDownloadMapper {
         return MappingResult(
             verses = verses,
             footnotes = footnotes,
+            bookNames = bookNames,
+            chapterInfo = chapterInfo,
             downloadedChapterCount = chapterCount,
             skippedBookCount = skippedBooks
         )

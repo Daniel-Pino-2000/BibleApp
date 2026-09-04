@@ -121,7 +121,9 @@ class DailyVerseNotificationWorker(
     }
 
     private suspend fun resolveVerse(repository: BibleRepository, ref: DailyVerseRef, versionId: String): DailyVerseUI? {
-        val bookName = BibleBooks.getBookById(ref.bookId)?.name ?: return null
+        val bookName = repository.getBookNames(versionId)[ref.bookId]
+            ?: BibleBooks.getBookById(ref.bookId)?.name
+            ?: return null
         val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, versionId)
         return resolveDailyVerseUI(bookName, ref, chapterVerses)
     }

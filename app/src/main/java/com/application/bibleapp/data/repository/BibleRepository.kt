@@ -1,6 +1,7 @@
 package com.application.bibleapp.data.repository
 
 import android.content.Context
+import android.util.Log
 import com.application.bibleapp.data.local.BibleDatabaseManager
 import com.application.bibleapp.data.local.VersionDownloadSummary
 import com.application.bibleapp.data.model.BibleTranslation
@@ -12,12 +13,16 @@ import com.application.bibleapp.data.model.VerseUI
 import com.application.bibleapp.data.model.toUI
 import com.application.bibleapp.data.remote.BibleRemoteDataSource
 import com.application.bibleapp.data.remote.DailyVerseDataSource
+import com.application.bibleapp.data.remote.HttpClientProvider
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import com.application.bibleapp.utils.NetworkUtils
 import com.application.bibleapp.worker.DailyVerseScheduler
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.SerializationException
+import java.io.File
 import java.io.IOException
 import java.util.Calendar
 
@@ -34,6 +39,10 @@ data class ReadingPosition(val bookId: Int, val chapter: Int, val verse: Int)
 
 /** The user's chosen local wall-clock time for the daily verse reminder. */
 data class NotificationTime(val hour: Int, val minute: Int)
+
+/** On-disk cache of [BibleRepository.getAllVersions]'s result — a wrapper so the JSON file has a stable top-level shape. */
+@Serializable
+private data class CachedTranslations(val translations: List<BibleTranslation>)
 
 /**
  * Sits between [BibleViewModel][com.application.bibleapp.viewmodel.BibleViewModel] and
@@ -127,7 +136,56 @@ class BibleRepository(
         }
     }
 
-    suspend fun getAllVersions(): List<BibleTranslation> = remote.getAvailableTranslations()
+    /**
+     * The translation catalog, restricted to standard 66-book Bibles. The helloao API's
+     * catalog also lists NT-only, OT-only, and single-book portions (roughly 1,000 of the
+     * ~1,250 entries) — this app's reading/navigation model assumes the full 1-66 canon,
+     * so anything short of it is filtered out here rather than surfaced as a pickable,
+     * partially-broken version.
+     *
+     * The catalog response is ~850KB and barely changes day to day, so a fresh copy is
+     * only fetched once per [TRANSLATIONS_CACHE_TTL_MS] — every other call (e.g. a cold
+     * app start shortly after the last one) reads the filtered list straight back off
+     * disk instead of re-downloading the whole thing. A corrupt/unreadable cache file is
+     * treated the same as a missing one (re-fetched, then overwritten) rather than
+     * failing the whole call.
+     */
+    suspend fun getAllVersions(): List<BibleTranslation> = withContext(Dispatchers.IO) {
+        readCachedVersions()?.let { return@withContext it }
+
+        val fresh = remote.getAvailableTranslations().filter { it.isCompleteCanon }
+        writeCachedVersions(fresh)
+        fresh
+    }
+
+    private fun readCachedVersions(): List<BibleTranslation>? {
+        val file = translationsCacheFile
+        if (!file.exists()) return null
+        val age = System.currentTimeMillis() - file.lastModified()
+        if (age !in 0..TRANSLATIONS_CACHE_TTL_MS) return null // also covers a clock rollback (negative age)
+
+        return try {
+            HttpClientProvider.json.decodeFromString(CachedTranslations.serializer(), file.readText()).translations
+        } catch (e: SerializationException) {
+            Log.w("BibleRepository", "Translations cache unreadable, will re-fetch: ${e.message}")
+            null
+        } catch (e: IOException) {
+            Log.w("BibleRepository", "Translations cache unreadable, will re-fetch: ${e.message}")
+            null
+        }
+    }
+
+    private fun writeCachedVersions(versions: List<BibleTranslation>) {
+        try {
+            val json = HttpClientProvider.json.encodeToString(CachedTranslations.serializer(), CachedTranslations(versions))
+            translationsCacheFile.writeText(json)
+        } catch (e: IOException) {
+            Log.w("BibleRepository", "Failed to write translations cache: ${e.message}")
+        }
+    }
+
+    private val translationsCacheFile: File
+        get() = File(context.applicationContext.filesDir, "translations_cache.json")
 
     // BibleDatabaseManager.isVersionDownloaded runs a blocking SQLite query; keep it off
     // whatever dispatcher the caller happens to be on (viewModelScope defaults to Main).
@@ -138,6 +196,25 @@ class BibleRepository(
     /** All locally downloaded versions, keyed for the picker to badge without a query per row. */
     suspend fun getDownloadedVersions(): List<DownloadedVersionInfo> = withContext(Dispatchers.IO) {
         BibleDatabaseManager.getDownloadedVersions(context)
+    }
+
+    /**
+     * Book names in [versionId]'s own language, keyed by book_id. Empty for "kjv" and for
+     * any version downloaded before book names were captured — callers should fall back to
+     * [com.application.bibleapp.data.model.BibleBooks]' English names in that case.
+     */
+    suspend fun getBookNames(versionId: String): Map<Int, String> = withContext(Dispatchers.IO) {
+        BibleDatabaseManager.getBookNames(context, versionId)
+    }
+
+    /**
+     * Chapter/verse structure for [versionId] — bookId -> (chapter -> verseCount).
+     * Empty for "kjv" and for any version downloaded before this was captured, in
+     * which case callers should fall back to
+     * [com.application.bibleapp.data.model.BibleBooks]' hardcoded (KJV-based) structure.
+     */
+    suspend fun getChapterStructure(versionId: String): Map<Int, Map<Int, Int>> = withContext(Dispatchers.IO) {
+        BibleDatabaseManager.getChapterStructure(context, versionId)
     }
 
     /** Downloads [translationId] (a single bulk request under the hood) and persists it to the local DB. */
@@ -210,5 +287,9 @@ class BibleRepository(
         const val KEY_NOTIFICATION_MINUTE = "notification_minute"
         const val DEFAULT_NOTIFICATION_HOUR = 8
         const val DEFAULT_NOTIFICATION_MINUTE = 0
+
+        // The catalog rarely changes; this just bounds how stale the picker's list can
+        // get without forcing a fresh 850KB fetch on every cold start.
+        const val TRANSLATIONS_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
     }
 }

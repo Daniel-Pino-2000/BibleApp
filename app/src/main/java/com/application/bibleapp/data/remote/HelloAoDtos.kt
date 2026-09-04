@@ -27,7 +27,10 @@ data class HelloAoTranslationDto(
     val language: String,
     val languageName: String? = null,
     val languageEnglishName: String? = null,
-    val textDirection: String? = null
+    val textDirection: String? = null,
+    // Verified live: every catalog entry carries this, but default to 0 (never
+    // mistaken for a complete 66-book canon) in case one ever doesn't.
+    val numberOfBooks: Int = 0
 )
 
 fun HelloAoTranslationDto.toBibleTranslation(): BibleTranslation = BibleTranslation(
@@ -36,7 +39,8 @@ fun HelloAoTranslationDto.toBibleTranslation(): BibleTranslation = BibleTranslat
     nativeName = name,
     languageName = languageEnglishName?.takeIf { it.isNotBlank() } ?: languageName ?: language,
     languageCode = language,
-    textDirection = if (textDirection == "rtl") TextDirection.RTL else TextDirection.LTR
+    textDirection = if (textDirection == "rtl") TextDirection.RTL else TextDirection.LTR,
+    numberOfBooks = numberOfBooks
 )
 
 /**

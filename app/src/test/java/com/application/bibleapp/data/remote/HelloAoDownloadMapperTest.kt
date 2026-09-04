@@ -20,15 +20,20 @@ class HelloAoDownloadMapperTest {
         books = books.toList()
     )
 
-    private fun book(id: String, order: Int, chapters: List<HelloAoChapterEntryDto>, isApocryphal: Boolean = false) =
-        HelloAoCompleteBookDto(
-            id = id,
-            name = id,
-            order = order,
-            numberOfChapters = chapters.size,
-            isApocryphal = isApocryphal,
-            chapters = chapters
-        )
+    private fun book(
+        id: String,
+        order: Int,
+        chapters: List<HelloAoChapterEntryDto>,
+        isApocryphal: Boolean = false,
+        name: String = id
+    ) = HelloAoCompleteBookDto(
+        id = id,
+        name = name,
+        order = order,
+        numberOfChapters = chapters.size,
+        isApocryphal = isApocryphal,
+        chapters = chapters
+    )
 
     private fun chapter(number: Int, vararg verses: Pair<Int, String>) = HelloAoChapterEntryDto(
         numberOfVerses = verses.size,
@@ -102,6 +107,40 @@ class HelloAoDownloadMapperTest {
     }
 
     @Test
+    fun `chapter info records the verse count actually present, per chapter`() {
+        val dto = translation(
+            book(
+                "GEN", order = 1,
+                chapters = listOf(
+                    chapter(1, 1 to "Verse one", 2 to "Verse two", 3 to "Verse three"),
+                    chapter(2, 1 to "Chapter two verse one")
+                )
+            )
+        )
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        assertEquals(
+            mapOf(1 to 3, 2 to 1),
+            result.chapterInfo.associate { it.chapter to it.verseCount }
+        )
+        assertEquals(setOf(1), result.chapterInfo.map { it.bookId }.toSet())
+    }
+
+    @Test
+    fun `chapter info uses the highest verse number, not just how many verses were parsed`() {
+        // A translation that renders a combined verse (e.g. 15-16) as one verse numbered
+        // 15 should still size the chapter as going up to 16, not undercount it as 2.
+        val dto = translation(
+            book("GEN", order = 1, chapters = listOf(chapter(1, 1 to "Verse one", 16 to "Verses 15-16 combined")))
+        )
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        assertEquals(16, result.chapterInfo.single().verseCount)
+    }
+
+    @Test
     fun `rich content from the parser is carried through to MappedVerse`() {
         val dto = translation(
             book("GEN", order = 1, chapters = listOf(chapter(1, 1 to "In the beginning...")))
@@ -112,6 +151,33 @@ class HelloAoDownloadMapperTest {
         val richContent = result.verses.single().richContent
         assertEquals(1, richContent?.runs?.size)
         assertEquals("In the beginning...", richContent?.runs?.first()?.text)
+    }
+
+    @Test
+    fun `book names are captured in the translation's own language`() {
+        val dto = translation(
+            book("GEN", order = 1, chapters = listOf(chapter(1, 1 to "En el principio...")), name = "Génesis"),
+            book("REV", order = 66, chapters = listOf(chapter(1, 1 to "La revelacion...")), name = "Apocalipsis")
+        )
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        assertEquals(
+            mapOf(1 to "Génesis", 66 to "Apocalipsis"),
+            result.bookNames.associate { it.bookId to it.name }
+        )
+    }
+
+    @Test
+    fun `book names for apocryphal books outside 1-66 are not captured`() {
+        val dto = translation(
+            book("GEN", order = 1, chapters = listOf(chapter(1, 1 to "Text")), name = "Genesis"),
+            book("APOC", order = 90, chapters = listOf(chapter(1, 1 to "Apocryphal text")), isApocryphal = true, name = "Apocrypha Book")
+        )
+
+        val result = HelloAoDownloadMapper.map(dto)
+
+        assertEquals(listOf(1), result.bookNames.map { it.bookId })
     }
 
     @Test

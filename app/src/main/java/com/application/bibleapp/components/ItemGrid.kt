@@ -16,8 +16,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.application.bibleapp.data.model.BibleBook
-import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.ui.theme.Spacing
 
 /** Minimum recommended touch target on Android — every cell stays at least this size
@@ -71,9 +69,9 @@ fun ItemGrid(
 }
 
 @Composable
-fun ChapterGrid(book: BibleBook, selectedChapter: Int? = null, onChapterClick: (Int) -> Unit) {
+fun ChapterGrid(chapterCount: Int, selectedChapter: Int? = null, onChapterClick: (Int) -> Unit) {
     ItemGrid(
-        items = book.chapters.map { it.number },
+        items = (1..chapterCount).toList(),
         itemsPerRow = 5,
         selectedItem = selectedChapter,
         onItemClick = onChapterClick
@@ -81,11 +79,9 @@ fun ChapterGrid(book: BibleBook, selectedChapter: Int? = null, onChapterClick: (
 }
 
 @Composable
-fun VerseGrid(bookId: Int, chapterId: Int, selectedVerse: Int? = null, onVerseClick: (Int) -> Unit) {
-    val numberOfVerses = BibleBooks.getVerseCount(bookId, chapterId)
-
+fun VerseGrid(verseCount: Int, selectedVerse: Int? = null, onVerseClick: (Int) -> Unit) {
     // Generate a list of verse numbers from 1 to the total number of verses in the chapter
-    val verseNumbers = (1..numberOfVerses).toList()
+    val verseNumbers = (1..verseCount).toList()
 
     // 6/row (not 8) so cells stay at or above the 48dp minimum touch target on common phone widths.
     ItemGrid(items = verseNumbers, itemsPerRow = 6, selectedItem = selectedVerse, onItemClick = onVerseClick)

@@ -20,8 +20,14 @@ data class DownloadedVersionInfo(
          * new way of rendering data already stored). 1 = plain text only. 2 = adds
          * rich_content (red-letter/poems/headings) and the footnotes table. 3 = strips
          * the leading pilcrow (¶) out of run text into [VerseRun.paragraphBreakBefore] —
-         * rows downloaded before this still carry the literal glyph in their text.
+         * rows downloaded before this still carry the literal glyph in their text. 4 =
+         * adds the downloaded_book_names table (each book's name in the translation's
+         * own language) — versions downloaded before this have no rows there and fall
+         * back to BibleBooks' English names until re-downloaded. 5 = adds the
+         * downloaded_chapter_info table (per-chapter verse counts, as this translation's
+         * own versification actually has them) — versions downloaded before this fall
+         * back to BibleBooks' KJV-based chapter/verse structure until re-downloaded.
          */
-        const val CURRENT_DOWNLOAD_SCHEMA_VERSION = 3
+        const val CURRENT_DOWNLOAD_SCHEMA_VERSION = 5
     }
 }

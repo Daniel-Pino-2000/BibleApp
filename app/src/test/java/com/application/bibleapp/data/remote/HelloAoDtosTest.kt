@@ -2,6 +2,8 @@ package com.application.bibleapp.data.remote
 
 import com.application.bibleapp.data.model.TextDirection
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class HelloAoDtosTest {
@@ -53,5 +55,28 @@ class HelloAoDtosTest {
         )
 
         assertEquals("Xish", dto.toBibleTranslation().languageName)
+    }
+
+    @Test
+    fun `numberOfBooks is carried through and marks a 66-book translation as complete`() {
+        val dto = HelloAoTranslationDto(
+            id = "BSB", name = "Berean Standard Bible", englishName = "Berean Standard Bible",
+            language = "eng", numberOfBooks = 66
+        )
+
+        val translation = dto.toBibleTranslation()
+
+        assertEquals(66, translation.numberOfBooks)
+        assertTrue(translation.isCompleteCanon)
+    }
+
+    @Test
+    fun `a partial-canon translation (e_g_ NT-only) is not complete`() {
+        val dto = HelloAoTranslationDto(
+            id = "GHT", name = "NT Portion", englishName = "NT Portion",
+            language = "eng", numberOfBooks = 27
+        )
+
+        assertFalse(dto.toBibleTranslation().isCompleteCanon)
     }
 }

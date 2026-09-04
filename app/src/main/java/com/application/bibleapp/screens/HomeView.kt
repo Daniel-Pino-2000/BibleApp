@@ -24,7 +24,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.ui.theme.ReadingStyle
 import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.ui.theme.scaledBy
@@ -39,7 +38,7 @@ fun HomeView(
 ) {
     val verseOfTheDay by bibleViewModel.verseOfTheDay.collectAsState()
     val verseTextScale by bibleViewModel.verseTextScale.collectAsState()
-    val currentBook by bibleViewModel.currentBook.collectAsState()
+    val currentBookName by bibleViewModel.currentBookName.collectAsState()
     val currentChapter by bibleViewModel.currentChapter.collectAsState()
 
     Column(
@@ -60,7 +59,7 @@ fun HomeView(
         HomeShortcutRow(
             icon = Icons.Filled.MenuBook,
             title = "Continue Reading",
-            subtitle = "${BibleBooks.getBookById(currentBook)?.name ?: "Unknown"} $currentChapter",
+            subtitle = "$currentBookName $currentChapter",
             onClick = onContinueReadingClick
         )
 

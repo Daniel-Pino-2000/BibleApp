@@ -11,6 +11,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.application.bibleapp.components.VerseGrid
+import com.application.bibleapp.data.model.verseCount
 import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
 
@@ -28,6 +29,7 @@ fun VersePickerView(
     val currentBook by bibleViewModel.currentBook.collectAsState()
     val currentChapter by bibleViewModel.currentChapter.collectAsState()
     val currentVerse by bibleViewModel.currentVerse.collectAsState()
+    val chapterStructure by bibleViewModel.chapterStructure.collectAsState()
 
     // Only highlight a pre-selected verse if this is the chapter currently open on the
     // reading screen — a freshly picked chapter has no verse "selected" yet.
@@ -41,8 +43,7 @@ fun VersePickerView(
     ) {
 
         VerseGrid(
-            bookId = bookId,
-            chapterId = chapter,
+            verseCount = chapterStructure.verseCount(bookId, chapter),
             selectedVerse = selectedVerse
         ) { verse -> // verse number return by the ItemGrid
             onVerseClicked(verse)

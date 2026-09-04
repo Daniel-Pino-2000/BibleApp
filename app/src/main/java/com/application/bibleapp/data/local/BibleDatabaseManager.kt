@@ -154,6 +154,37 @@ object BibleDatabaseManager {
             """.trimIndent()
         )
 
+        // Each book's name as given by the translation itself (e.g. "Génesis" for a
+        // Spanish translation) — the bundled KJV has no row here and never needs one,
+        // since BibleBooks' hardcoded English names are already correct for it.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS downloaded_book_names (
+                version TEXT NOT NULL,
+                book_id INTEGER NOT NULL,
+                name TEXT NOT NULL,
+                PRIMARY KEY (version, book_id)
+            )
+            """.trimIndent()
+        )
+
+        // Per-chapter verse count as this translation actually has it — versification
+        // (verse numbering/splitting) can differ slightly between translations, so
+        // navigation shouldn't just assume the bundled KJV's structure applies to every
+        // downloaded version. Chapter count for a book is derived from COUNT(*) of its
+        // rows here rather than stored separately.
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS downloaded_chapter_info (
+                version TEXT NOT NULL,
+                book_id INTEGER NOT NULL,
+                chapter INTEGER NOT NULL,
+                verse_count INTEGER NOT NULL,
+                PRIMARY KEY (version, book_id, chapter)
+            )
+            """.trimIndent()
+        )
+
         // Single-row cache of the daily-verse reference, refreshed once a day by
         // DailyVerseFetchWorker and read by the Home screen instead of hitting the
         // remote API on every open. `CHECK (id = 0)` enforces at the DB level that
@@ -256,6 +287,8 @@ object BibleDatabaseManager {
         try {
             db.execSQL("DELETE FROM downloaded_verses WHERE version = ?", arrayOf(versionId))
             db.execSQL("DELETE FROM downloaded_footnotes WHERE version = ?", arrayOf(versionId))
+            db.execSQL("DELETE FROM downloaded_book_names WHERE version = ?", arrayOf(versionId))
+            db.execSQL("DELETE FROM downloaded_chapter_info WHERE version = ?", arrayOf(versionId))
             db.execSQL("DELETE FROM downloaded_versions WHERE id = ?", arrayOf(versionId))
             db.setTransactionSuccessful()
         } finally {
@@ -342,6 +375,20 @@ object BibleDatabaseManager {
                             verse.text,
                             verse.richContent?.encodeToJson()
                         )
+                    )
+                }
+
+                downloaded.bookNames.forEach { bookName ->
+                    db.execSQL(
+                        "INSERT OR REPLACE INTO downloaded_book_names (version, book_id, name) VALUES (?, ?, ?)",
+                        arrayOf(translationId, bookName.bookId, bookName.name)
+                    )
+                }
+
+                downloaded.chapterInfo.forEach { chapterInfo ->
+                    db.execSQL(
+                        "INSERT OR REPLACE INTO downloaded_chapter_info (version, book_id, chapter, verse_count) VALUES (?, ?, ?, ?)",
+                        arrayOf(translationId, chapterInfo.bookId, chapterInfo.chapter, chapterInfo.verseCount)
                     )
                 }
 
@@ -468,6 +515,52 @@ object BibleDatabaseManager {
             }
         }
         return footnotes
+    }
+
+    /**
+     * Book names in [versionId]'s own language, keyed by book_id (1-66). Empty for "kjv"
+     * (bundled, English-only — BibleBooks' hardcoded names already cover it) and for any
+     * version downloaded before this table existed, in which case the caller falls back
+     * to BibleBooks' English names.
+     */
+    fun getBookNames(context: Context, versionId: String): Map<Int, String> {
+        if (versionId == "kjv") return emptyMap()
+        val db = getDatabase(context)
+        val cursor = db.rawQuery(
+            "SELECT book_id, name FROM downloaded_book_names WHERE version = ?",
+            arrayOf(versionId)
+        )
+        val names = mutableMapOf<Int, String>()
+        cursor.use {
+            while (it.moveToNext()) {
+                names[it.getInt(0)] = it.getString(1)
+            }
+        }
+        return names
+    }
+
+    /**
+     * Chapter/verse structure for [versionId], as bookId -> (chapter -> verseCount).
+     * Empty for "kjv" and for any version downloaded before this table existed, in
+     * which case the caller falls back to BibleBooks' hardcoded (KJV-based) structure.
+     * A book's chapter count is just the size of its inner map — there's no separate
+     * "total chapters" row to keep in sync.
+     */
+    fun getChapterStructure(context: Context, versionId: String): Map<Int, Map<Int, Int>> {
+        if (versionId == "kjv") return emptyMap()
+        val db = getDatabase(context)
+        val cursor = db.rawQuery(
+            "SELECT book_id, chapter, verse_count FROM downloaded_chapter_info WHERE version = ?",
+            arrayOf(versionId)
+        )
+        val structure = mutableMapOf<Int, MutableMap<Int, Int>>()
+        cursor.use {
+            while (it.moveToNext()) {
+                val bookId = it.getInt(0)
+                structure.getOrPut(bookId) { mutableMapOf() }[it.getInt(1)] = it.getInt(2)
+            }
+        }
+        return structure
     }
 
     private fun buildNormalizedSql(textExpr: String): String {

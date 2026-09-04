@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.data.model.BibleTranslation
+import com.application.bibleapp.data.model.ChapterStructure
 import com.application.bibleapp.data.model.DEFAULT_VERSION
 import com.application.bibleapp.data.model.DailyVerseRef
 import com.application.bibleapp.data.model.DailyVerseUI
@@ -12,6 +13,7 @@ import com.application.bibleapp.data.model.Footnote
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.model.VerseOfTheDay
 import com.application.bibleapp.data.model.VerseUI
+import com.application.bibleapp.data.model.chapterCount
 import com.application.bibleapp.data.model.resolveDailyVerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
@@ -58,6 +60,24 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
 
     private val _currentBook = MutableStateFlow(1)
     val currentBook: StateFlow<Int> = _currentBook
+
+    // Book names in the selected version's own language, keyed by book_id — empty
+    // for the bundled KJV and for a version downloaded before this was captured, in
+    // which case lookups fall back to BibleBooks' hardcoded English names.
+    private val _bookNames = MutableStateFlow<Map<Int, String>>(emptyMap())
+    val bookNames: StateFlow<Map<Int, String>> = _bookNames.asStateFlow()
+
+    // The selected version's own chapter/verse structure — empty (falls back to
+    // BibleBooks' KJV-based structure) for the same reasons as _bookNames above.
+    // Loaded alongside it everywhere the selected version changes.
+    private val _chapterStructure = MutableStateFlow<ChapterStructure>(emptyMap())
+    val chapterStructure: StateFlow<ChapterStructure> = _chapterStructure.asStateFlow()
+
+    /** The currently-open book's name, in the selected version's own language. */
+    val currentBookName: StateFlow<String> =
+        combine(_currentBook, _bookNames) { bookId, names ->
+            names[bookId] ?: BibleBooks.getBookById(bookId)?.name ?: "Unknown"
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), "")
 
     private val _currentChapter = MutableStateFlow(1)
     val currentChapter: StateFlow<Int> = _currentChapter
@@ -148,6 +168,8 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             val persistedId = repository.loadSelectedVersion()
             val isAvailable = persistedId == DEFAULT_VERSION.id || repository.isVersionDownloaded(persistedId)
             _selectedVersion.value = if (isAvailable) SelectedBibleVersion(id = persistedId) else DEFAULT_VERSION
+            _bookNames.value = repository.getBookNames(_selectedVersion.value.id)
+            _chapterStructure.value = repository.getChapterStructure(_selectedVersion.value.id)
             val lastPosition = repository.loadReadingPosition()
             loadChapter(lastPosition.bookId, lastPosition.chapter, lastPosition.verse)
             loadVerseOfTheDay()
@@ -171,7 +193,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     }
 
     private suspend fun resolveVerse(ref: DailyVerseRef): DailyVerseUI? {
-        val bookName = BibleBooks.getBookById(ref.bookId)?.name ?: return null
+        val bookName = _bookNames.value[ref.bookId] ?: BibleBooks.getBookById(ref.bookId)?.name ?: return null
         val chapterVerses = repository.getChapter(ref.bookId, ref.chapter, _selectedVersion.value.id)
         return resolveDailyVerseUI(bookName, ref, chapterVerses)
     }
@@ -203,14 +225,13 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         if (_currentChapter.value > 1) {
             loadChapter(_currentBook.value, _currentChapter.value - 1)
         } else if (_currentBook.value > 1) {
-            val previousBook = BibleBooks.allBooks.first { it.id == _currentBook.value - 1 }
-            loadChapter(previousBook.id, previousBook.chapters.size)
+            val previousBookId = _currentBook.value - 1
+            loadChapter(previousBookId, _chapterStructure.value.chapterCount(previousBookId))
         }
     }
 
     fun nextChapter() {
-        val currentBook = BibleBooks.allBooks.first { it.id == _currentBook.value }
-        if (_currentChapter.value < currentBook.chapters.size) {
+        if (_currentChapter.value < _chapterStructure.value.chapterCount(_currentBook.value)) {
             loadChapter(_currentBook.value, _currentChapter.value + 1)
         } else if (_currentBook.value < BibleBooks.allBooks.size) {
             loadChapter(_currentBook.value + 1, 1)
@@ -344,8 +365,11 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             result.fold(
                 onSuccess = {
                     refreshDownloadedVersions()
-                    // Reload so an already-open chapter picks up the newly-fetched footnotes/rich content.
+                    // Reload so an already-open chapter picks up the newly-fetched footnotes/rich
+                    // content/book names/chapter structure.
                     if (_selectedVersion.value.id == versionId) {
+                        _bookNames.value = repository.getBookNames(versionId)
+                        _chapterStructure.value = repository.getChapterStructure(versionId)
                         loadChapter(_currentBook.value, _currentChapter.value)
                     }
                 },
@@ -355,12 +379,14 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
     }
 
     fun useLocalBible() {
-        switchToVersion(DEFAULT_VERSION.id)
+        viewModelScope.launch { switchToVersion(DEFAULT_VERSION.id) }
     }
 
-    private fun switchToVersion(versionId: String) {
+    private suspend fun switchToVersion(versionId: String) {
         _selectedVersion.value = SelectedBibleVersion(id = versionId)
         repository.saveSelectedVersion(versionId)
+        _bookNames.value = repository.getBookNames(versionId)
+        _chapterStructure.value = repository.getChapterStructure(versionId)
         loadChapter(_currentBook.value, _currentChapter.value)
         // Re-resolve (not re-fetch) so the card matches the newly selected translation
         // right away — the reference is already cached for today, so this is just a

@@ -25,6 +25,21 @@ val oldTestamentBooks = allBooks.filter { it.id in 1..39 }
  */
 val newTestamentBooks = allBooks.filter { it.id in 40..66 }
 
+/**
+ * A downloaded version's own chapter/verse structure, as bookId -> (chapter -> verseCount) —
+ * see [com.application.bibleapp.data.repository.BibleRepository.getChapterStructure]. Empty
+ * for the bundled KJV and for any version downloaded before this was captured; [chapterCount]
+ * and [verseCount] fall back to [BibleBooks]' hardcoded (KJV-based) structure in that case,
+ * since versification can otherwise differ slightly between translations.
+ */
+typealias ChapterStructure = Map<Int, Map<Int, Int>>
+
+fun ChapterStructure.chapterCount(bookId: Int): Int =
+    this[bookId]?.size ?: BibleBooks.getChapterCount(bookId)
+
+fun ChapterStructure.verseCount(bookId: Int, chapter: Int): Int =
+    this[bookId]?.get(chapter) ?: BibleBooks.getVerseCount(bookId, chapter)
+
 object BibleBooks {
 
     /**
