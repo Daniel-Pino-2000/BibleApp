@@ -95,6 +95,11 @@ fun BookPickerView(
             }
         }
 
+        LaunchedEffect(currentBook) {
+            val index = filteredBooks.indexOfFirst { it.id == currentBook }
+            listState.animateScrollToItem(index)
+        }
+
         LazyColumn(
             state = listState,
             modifier = Modifier.fillMaxSize()
