@@ -24,6 +24,7 @@ import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.chapterCount
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.navigation.bottomNavigationItems
 import com.application.bibleapp.viewmodel.BibleViewModel
@@ -73,10 +74,11 @@ fun MainBottomBar(
             if (currentRoute == Screen.Bible.route) {
                 val currentBook by bibleViewModel.currentBook.collectAsState()
                 val currentChapter by bibleViewModel.currentChapter.collectAsState()
+                val bookNames by bibleViewModel.bookNames.collectAsState()
+                val chapterStructure by bibleViewModel.chapterStructure.collectAsState()
                 val canGoPrevious = currentBook > 1 || currentChapter > 1
-                val canGoNext = BibleBooks.getBookById(currentBook)?.let { book ->
-                    currentChapter < book.chapters.size || currentBook < BibleBooks.allBooks.size
-                } ?: false
+                val canGoNext = currentChapter < chapterStructure.chapterCount(currentBook) ||
+                    currentBook < BibleBooks.allBooks.size
 
                 // A touch more tonal elevation than its surroundings — the row reads as
                 // slightly "raised" relative to the tab row around it, the same system M3
@@ -87,6 +89,7 @@ fun MainBottomBar(
                 ) {
                     ChapterNavBar(
                         currentBook = currentBook,
+                        bookName = { bookId -> bookNames[bookId] ?: BibleBooks.getBookById(bookId)?.name ?: "Unknown" },
                         currentChapter = currentChapter,
                         canGoPrevious = canGoPrevious,
                         canGoNext = canGoNext,

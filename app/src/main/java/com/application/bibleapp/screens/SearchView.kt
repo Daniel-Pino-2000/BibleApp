@@ -47,6 +47,7 @@ fun SearchView(
     val searchText by bibleViewModel.searchQuery.collectAsState()
 
     val searchedVerses by bibleViewModel.searchResults.collectAsState()
+    val bookNames by bibleViewModel.bookNames.collectAsState()
 
     Column(
         modifier = modifier
@@ -68,7 +69,7 @@ fun SearchView(
                 }
             )
             searchedVerses.isEmpty() -> SearchNoResultsState(query = searchText)
-            else -> SearchResultsList(searchedVerses, onVerseClicked)
+            else -> SearchResultsList(searchedVerses, bookNames, onVerseClicked)
         }
     }
 
@@ -148,6 +149,7 @@ private fun SearchNoResultsState(query: String) {
 @Composable
 private fun SearchResultsList(
     searchedVerses: List<VerseUI>,
+    bookNames: Map<Int, String>,
     onVerseClicked: (bookId: Int, chapter: Int, verse: Int) -> Unit
 ) {
     LazyColumn(
@@ -155,7 +157,7 @@ private fun SearchResultsList(
             .fillMaxSize()
     ) {
         items(searchedVerses, key = { it.id ?: 0 }) { verse ->
-            val bookName = BibleBooks.getBookById(verse.bookId ?: 0)?.name ?: "Unknown"
+            val bookName = bookNames[verse.bookId ?: 0] ?: BibleBooks.getBookById(verse.bookId ?: 0)?.name ?: "Unknown"
 
             Column(
                 modifier = Modifier

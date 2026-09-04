@@ -29,6 +29,24 @@ data class MappedFootnote(
     val text: String
 )
 
+/** A book's name as given by the translation itself, in its own language — e.g. "Génesis" for a Spanish translation's Genesis. */
+data class MappedBookName(
+    val bookId: Int,
+    val name: String
+)
+
+/**
+ * How many verses one chapter of one book actually contains in this translation —
+ * versification (verse numbering/splitting) can differ slightly between translations,
+ * so this is measured from the verses this source actually parsed out, not assumed
+ * from another translation's structure.
+ */
+data class MappedChapterInfo(
+    val bookId: Int,
+    val chapter: Int,
+    val verseCount: Int
+)
+
 /**
  * Result of a full-translation download: every verse the source provided,
  * plus counts describing what was skipped (e.g. apocryphal books outside the
@@ -40,6 +58,8 @@ data class DownloadedTranslation(
     val translationName: String,
     val verses: List<MappedVerse>,
     val footnotes: List<MappedFootnote>,
+    val bookNames: List<MappedBookName>,
+    val chapterInfo: List<MappedChapterInfo>,
     val downloadedChapterCount: Int,
     val skippedBookCount: Int
 )

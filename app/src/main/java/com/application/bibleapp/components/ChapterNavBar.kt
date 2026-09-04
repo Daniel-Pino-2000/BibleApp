@@ -26,7 +26,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.application.bibleapp.data.model.BibleBooks
 import com.application.bibleapp.ui.theme.Spacing
 
 /** Quick, subtle — reads as a nudge in the direction of travel, not a distraction. */
@@ -48,6 +47,7 @@ private const val CHAPTER_LABEL_ANIM_MS = 180
 @Composable
 fun ChapterNavBar(
     currentBook: Int,
+    bookName: (Int) -> String,
     currentChapter: Int,
     canGoPrevious: Boolean,
     canGoNext: Boolean,
@@ -94,7 +94,7 @@ fun ChapterNavBar(
                 )
             ) {
                 Text(
-                    text = "${BibleBooks.getBookById(book)?.name ?: "Unknown"} $chapter",
+                    text = "${bookName(book)} $chapter",
                     style = MaterialTheme.typography.titleMedium
                 )
             }

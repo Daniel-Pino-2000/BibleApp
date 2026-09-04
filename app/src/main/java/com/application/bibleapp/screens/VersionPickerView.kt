@@ -244,6 +244,14 @@ private fun VersionRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
+                // Every entry here already passed the standard-canon filter (see
+                // BibleRepository.getAllVersions), so this always reads "66 books" — it's
+                // a confirmation for the user, not a distinguishing detail between rows.
+                Text(
+                    text = "${version.numberOfBooks} books",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
                 if (needsUpdate) {
                     Text(
                         text = "Update available — tap ⟳ for footnotes and formatting",

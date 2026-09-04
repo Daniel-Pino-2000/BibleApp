@@ -94,6 +94,8 @@ class HelloAoBibleDataSource(
                         ?: dto.translation.englishName,
                     verses = mapping.verses,
                     footnotes = mapping.footnotes,
+                    bookNames = mapping.bookNames,
+                    chapterInfo = mapping.chapterInfo,
                     downloadedChapterCount = mapping.downloadedChapterCount,
                     skippedBookCount = mapping.skippedBookCount
                 )

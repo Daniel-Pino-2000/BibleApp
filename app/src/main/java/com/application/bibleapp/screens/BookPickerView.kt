@@ -31,6 +31,7 @@ import androidx.compose.ui.unit.dp
 import com.application.bibleapp.components.ChapterGrid
 import com.application.bibleapp.components.SearchBar
 import com.application.bibleapp.data.model.BibleBooks
+import com.application.bibleapp.data.model.chapterCount
 import com.application.bibleapp.data.model.oldTestamentBooks
 import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.viewmodel.BibleViewModel
@@ -47,6 +48,8 @@ fun BookPickerView(
 
     val currentBook by bibleViewModel.currentBook.collectAsState()
     val currentChapter by bibleViewModel.currentChapter.collectAsState()
+    val bookNames by bibleViewModel.bookNames.collectAsState()
+    val chapterStructure by bibleViewModel.chapterStructure.collectAsState()
     val expandedBookId = rememberSaveable { mutableStateOf<Int?>(null) }
 
     var searchText by rememberSaveable { mutableStateOf("") }
@@ -67,7 +70,7 @@ fun BookPickerView(
         )
 
         val filteredBooks = BibleBooks.allBooks.filter {
-            it.name.contains(searchText, ignoreCase = true)
+            (bookNames[it.id] ?: it.name).contains(searchText, ignoreCase = true)
         }
 
         // Open the list already scrolled to the book being read, instead of
@@ -103,7 +106,7 @@ fun BookPickerView(
                 val isExpanded = expandedBookId.value == book.id
 
                 Text(
-                    text = book.name,
+                    text = bookNames[book.id] ?: book.name,
                     style = MaterialTheme.typography.bodyLarge,
                     color = if (isExpanded) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
@@ -117,7 +120,7 @@ fun BookPickerView(
 
                 if (isExpanded) {
                     ChapterGrid(
-                        book = book,
+                        chapterCount = chapterStructure.chapterCount(book.id),
                         selectedChapter = if (book.id == currentBook) currentChapter else null
                     ) { chapterNumber ->
 
