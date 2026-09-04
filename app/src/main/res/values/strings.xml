@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">TreasuredWord - Bible App</string>
-    <string name="app_short_name">TreasuredWord</string>
+    <string name="app_name">TreasuredWord</string>
+    <string name="app_short_name">Bible</string>
     <string name="daily_verse_notification_title">Verse of the Day</string>
 </resources>
