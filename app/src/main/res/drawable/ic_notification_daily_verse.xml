@@ -3,10 +3,14 @@
     android:height="24dp"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Simple open-book silhouette. Notification icons must be a plain white shape on a
-         transparent background: the system force-tints/masks it, so this fill color is
-         never actually shown, but white plus alpha is the required convention. -->
+    <!-- Closed book with a cross cut out, matching the launcher icon. Notification icons must
+         be a plain white shape on a transparent background: the system force-tints/masks it,
+         so this fill color is never actually shown, but white plus alpha is the required
+         convention. The cross is a single non-overlapping hole path combined with the book
+         outline via evenOdd fill, so it renders as a clean cutout rather than a solid patch. -->
     <path
         android:fillColor="#FFFFFFFF"
-        android:pathData="M12,4 L2,7 L2,20 L12,17 Z M12,4 L22,7 L22,20 L12,17 Z" />
+        android:fillType="evenOdd"
+        android:pathData="M5.5,3H18.5A1.5,1.5 0 0 1 20,4.5V19.5A1.5,1.5 0 0 1 18.5,21H5.5A1.5,1.5 0 0 1 4,19.5V4.5A1.5,1.5 0 0 1 5.5,3Z
+                           M11,7L13,7L13,10.5L16,10.5L16,13.5L13,13.5L13,17L11,17L11,13.5L8,13.5L8,10.5L11,10.5Z" />
 </vector>
