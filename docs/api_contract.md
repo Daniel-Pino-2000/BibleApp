@@ -1,9 +1,7 @@
 # BibleApp API Contract
 
-**Status:** Draft v1 — covers **Notes** and **Highlights** only.
-**Not yet covered:** Auth (`/api/v1/auth/...`). Every endpoint below assumes a JWT issued by
-that (still-to-be-designed) flow; see [Ktor_Backend_Contract_And_Roadmap.pdf](Ktor_Backend_Contract_And_Roadmap.pdf)
-Section 1 for the outline. This file gets an `Auth` section appended in the next pass.
+**Status:** Draft v1 — complete for **Auth**, **Account**, **Reading Progress**, **Notes**, and
+**Highlights**: everything the roadmap's "user accounts and sync" feature needs.
 
 This is a living document — update it *before* changing a route, not after.
 
@@ -12,63 +10,91 @@ This is a living document — update it *before* changing a route, not after.
 ## Conventions (apply to every endpoint below)
 
 - **Base path:** `/api/v1`
-- **Auth:** every endpoint requires `Authorization: Bearer <token>` unless marked `Auth: none`.
-  All Notes/Highlights endpoints are implicitly scoped to the authenticated user — nobody can
-  read, edit, or delete another user's data, and the user is never passed as a request field
-  (it comes from the JWT).
+- **Auth:** every endpoint requires `Authorization: Bearer <access token>` unless marked
+  `Auth: none`. Resource endpoints (highlights, notes, reading progress, account) are implicitly
+  scoped to the authenticated user — nobody can read, edit, or delete another user's data, and
+  the user is never passed as a request field (it comes from the token).
 - **IDs:** server-generated UUID strings.
 - **Timestamps:** ISO-8601 strings, UTC (e.g. `2026-09-11T14:32:00Z`) — never epoch millis.
 - **Errors:** every non-2xx response uses the shared `ErrorResponse` shape (below).
 
 ---
 
-## Design decisions specific to Notes & Highlights
+## Design decisions
 
-These are the calls made during contract design, written down so they don't get re-litigated
-per-endpoint later — see [Section 1 of the roadmap PDF](Ktor_Backend_Contract_And_Roadmap.pdf)
-for why this step happens before code.
+Written down so they don't get re-litigated per-endpoint later — see
+[Section 1 of the roadmap PDF](Ktor_Backend_Contract_And_Roadmap.pdf) for why this step happens
+before code.
 
-1. **A highlight or note covers an explicit list of verses** (`verses: List<VerseLocation>`),
-   not a range. This matches the actual UX directly — the user taps/selects some verses (a
-   contiguous passage, a couple of scattered cross-references, whatever) and saves them as one
-   highlight or one note, which then shows up as a single card in the user's library. There's no
-   separate "range" concept to reconcile with "list of verses" — a contiguous selection is just a
-   list that happens to be consecutive.
-2. **Verses may span multiple chapters or books.** The API doesn't restrict a highlight/note to a
-   single chapter — each entry in `verses` carries its own `bookId`/`chapter`/`verse`. Most
-   highlights will probably stay within one passage in practice, but nothing in the contract
-   enforces that, since there's no real cost to allowing it and an artificial restriction would
-   just get lifted later anyway.
-3. **`versionId` lives on the highlight/note itself, not per verse.** A highlight is anchored to
-   the translation the user was reading in — verse numbering (versification) can differ between
-   translations, so mixing versions within one highlight isn't meaningful. If the user switches
-   translations, that's a new highlight.
-4. **Display order is a client concern.** The server doesn't guarantee `verses` comes back in any
-   particular order (selection order, insertion order, etc. are all implementation details). If
-   the library card needs to show verses in Bible order, sort client-side by
-   `(bookId, chapter, verse)`.
-5. **Deletions are soft, not hard** (`deletedAt: String?` on every resource). This is a sync API:
-   if device A deletes a highlight and device B only ever sees "it's gone from the list," device
-   B can't tell the difference between "deleted" and "server hasn't sent it yet." A plain `GET`
-   returns only active items; passing `updatedSince` also returns tombstones for anything
-   changed (including deleted) since that time, so a syncing client can reconcile its local copy.
-6. **Highlights are recolor-only after creation; Notes allow editing both text and the verse
-   list.** Recoloring is the only realistic post-creation edit for a highlight (if the selection
-   was wrong, delete and recreate — cheap, since it's one call either way). Notes are more often
-   revised from a dedicated editor screen, where re-picking which verses the note covers is a
-   reasonable edit, not just a fix-up.
-7. **No conflict resolution beyond last-write-wins.** Fine for one person syncing across their
-   own devices. Would need real thought (versioning, merge rules) if this ever became
-   multi-user/collaborative — not a v1 concern.
-8. **No pagination yet**, but filtering semantics matter now that verses are a list: `GET
-   .../?bookId=&chapter=` matches a highlight/note if **any** entry in its `verses` list is in
-   that book/chapter — not an exact single-location match like before. Revisit with real
-   pagination if a user's total note/highlight count ever makes an unfiltered `GET` expensive.
-9. **Server does not validate verse locations against the real verse count for that
-   version/chapter** (e.g. that "Genesis 1:35" doesn't exist). The client already has this data
-   (`ChapterStructure`) and is trusted to send valid locations. Documented gap, not an oversight.
-10. **`verses` must be non-empty**, and is capped at a sane maximum (e.g. 500 entries) as a
-    payload sanity guard, not a real UX limit — returned as `VALIDATION_ERROR` if violated.
+### Auth & sessions
+
+1. **Two tokens, not one.** A short-lived access JWT (minutes, validated by the existing
+   `plugins/Security.kt` scaffold) plus a longer-lived opaque refresh token, stored hashed
+   server-side per session/device. A single long-lived JWT can't be revoked before it expires;
+   this can — logging out actually ends that session instead of just deleting a local copy of a
+   token that's still valid.
+2. **Refresh token rotation.** Every call to `/auth/refresh` returns a *new* refresh token and
+   invalidates the one that was just used. If an already-used refresh token shows up again later,
+   that's a signal the token was copied/stolen, not normal client behavior.
+3. **Tokens travel in the JSON body, not cookies.** This is a native Android client, not a
+   browser — there's no cookie jar to lean on. The client stores both tokens in encrypted local
+   storage (Phase 6 of the roadmap), same as any other app secret.
+4. **Login failures are deliberately generic** (`INVALID_CREDENTIALS`, whether the email doesn't
+   exist or the password is wrong). The API should never let a caller distinguish "wrong
+   password" from "no such account" — standard defense against account enumeration.
+5. **Account deletion requires re-entering the password**, not just a valid access token. A
+   destructive, irreversible action deserves a stronger check than "whoever is currently holding
+   the bearer token" — that token could be from a device the user no longer trusts.
+6. **Account deletion cascades** to every highlight, note, reading-progress record, and refresh
+   token owned by that user. This isn't optional polish: Google Play's User Data policy requires
+   an in-app path to delete an account and its data for any app that lets users create one, so
+   this endpoint has to exist before accounts can ship at all, not just be a nice-to-have.
+
+### Reading progress
+
+7. **Modeled as a singleton per user** (`GET`/`PUT` only — no id, no list). There's exactly one
+   "where I left off," not a collection of them.
+8. **The client sends its own `readAt` timestamp with every update; the server only applies it if
+   `readAt` is at least as new as the stored value's `updatedAt`.** Otherwise a device that was
+   offline for a while and syncs last would silently overwrite a newer position from another
+   device — a visible, confusing regression ("why did it jump back to yesterday's chapter") that
+   this one extra field prevents. A stale write isn't an error; the server just keeps its current
+   value and returns it unchanged.
+
+### Notes & Highlights
+
+9. **A highlight or note covers an explicit list of verses** (`verses: List<VerseLocation>`), not
+   a range. This matches the actual UX — select some verses (a contiguous passage, a couple of
+   scattered cross-references, whatever) and save them as one highlight or note, shown as a
+   single library card.
+10. **Verses may span multiple chapters or books.** Nothing in the contract restricts a
+    highlight/note to one chapter; most will stay within one passage in practice, but there's no
+    artificial limit forcing that.
+11. **`versionId` lives on the highlight/note itself, not per verse.** A highlight is anchored to
+    the translation the user was reading in; mixing versions within one highlight isn't
+    meaningful, since versification can differ between translations.
+12. **Display order is a client concern.** `verses` isn't guaranteed to come back in any
+    particular order; sort client-side by `(bookId, chapter, verse)` if the library needs Bible
+    order.
+13. **Deletions are soft, not hard** (`deletedAt: String?`). A plain `GET` returns only active
+    items; passing `updatedSince` also returns tombstones for anything changed since that time,
+    so a syncing device can tell "deleted" apart from "not sent yet."
+14. **Highlights are recolor-only after creation; Notes allow editing both text and the verse
+    list.** Recoloring is the only realistic post-creation edit for a highlight — delete and
+    recreate for anything else. Notes are more often revised from a dedicated editor, so
+    re-picking the covered verses is a reasonable edit, not just a fix-up.
+15. **No pagination yet**, but filtering matters now that verses is a list: `GET
+    .../?bookId=&chapter=` matches if **any** entry in `verses` is in that book/chapter.
+16. **Server does not validate verse locations against real per-version verse counts.** The
+    client already has this data (`ChapterStructure`) and is trusted to send valid ones.
+17. **`verses` must be non-empty**, capped at a sane maximum (e.g. 500) as a payload guard.
+
+### General
+
+18. **No conflict resolution beyond last-write-wins** (reading progress's `readAt` check is the
+    one deliberate exception, since a silent regression there is unusually annoying). Fine for
+    one person syncing across their own devices; would need real thought if this ever became
+    multi-user/collaborative.
 
 ---
 
@@ -94,9 +120,123 @@ data class ErrorResponse(
 
 | Code | Status | Meaning |
 |---|---|---|
-| `VALIDATION_ERROR` | 400 | Malformed body — e.g. empty or oversized `verses`, blank `versionId`/`text`, a `bookId` outside 1..66 |
-| `UNAUTHORIZED` | 401 | Missing, invalid, or expired token |
+| `VALIDATION_ERROR` | 400 | Malformed body — bad email format, password too short, empty/oversized `verses`, a `bookId` outside 1..66, etc. |
+| `INVALID_CREDENTIALS` | 401 | Login or account-deletion password confirmation failed — same response whether the email doesn't exist or the password is wrong (decision 4) |
+| `UNAUTHORIZED` | 401 | Missing, invalid, or expired access/refresh token |
+| `EMAIL_ALREADY_REGISTERED` | 409 | Registration attempted with an email already in use |
 | `NOT_FOUND` | 404 | No resource with that id — **also returned when the id belongs to another user**, so ownership is never leaked by a 403 |
+
+---
+
+## Auth
+
+```kotlin
+@Serializable
+data class RegisterRequest(val email: String, val password: String)
+
+@Serializable
+data class LoginRequest(val email: String, val password: String)
+
+@Serializable
+data class RefreshRequest(val refreshToken: String)
+
+@Serializable
+data class LogoutRequest(val refreshToken: String)
+
+@Serializable
+data class AuthResponse(
+    val userId: String,
+    val accessToken: String,
+    val accessTokenExpiresInSeconds: Long,
+    val refreshToken: String
+)
+```
+
+### `POST /api/v1/auth/register`
+Auth: none
+Request: `RegisterRequest`
+Success: `201 Created` → `AuthResponse`
+Errors: `400 VALIDATION_ERROR`, `409 EMAIL_ALREADY_REGISTERED`
+
+### `POST /api/v1/auth/login`
+Auth: none
+Request: `LoginRequest`
+Success: `200 OK` → `AuthResponse`
+Errors: `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`
+
+### `POST /api/v1/auth/refresh`
+Auth: none — the refresh token itself is the credential
+Request: `RefreshRequest`
+Success: `200 OK` → `AuthResponse` (new access token **and** a newly-rotated refresh token; decision 2)
+Errors: `401 UNAUTHORIZED` (invalid, expired, or already-rotated refresh token)
+
+### `POST /api/v1/auth/logout`
+Auth: required
+Request: `LogoutRequest`
+Success: `204 No Content` — revokes only that refresh token/session; other devices stay logged in
+Errors: `401 UNAUTHORIZED`
+
+---
+
+## Account
+
+```kotlin
+@Serializable
+data class UserResponse(val id: String, val email: String, val createdAt: String)
+
+@Serializable
+data class DeleteAccountRequest(val password: String)
+```
+
+### `GET /api/v1/users/me`
+Auth: required
+Success: `200 OK` → `UserResponse`
+Errors: `401 UNAUTHORIZED`
+
+### `DELETE /api/v1/users/me`
+Auth: required
+Request: `DeleteAccountRequest` (decision 5)
+Success: `204 No Content` — deletes the account and cascades to all owned highlights, notes, reading progress, and refresh tokens (decision 6)
+Errors: `401 UNAUTHORIZED` (bad/missing token), `401 INVALID_CREDENTIALS` (wrong password confirmation)
+
+---
+
+## Reading Progress
+
+```kotlin
+@Serializable
+data class ReadingProgressResponse(
+    val versionId: String,
+    val bookId: Int,
+    val chapter: Int,
+    val verse: Int,
+    val updatedAt: String
+)
+
+@Serializable
+data class UpdateReadingProgressRequest(
+    val versionId: String,
+    val bookId: Int,
+    val chapter: Int,
+    val verse: Int,
+    val readAt: String   // client's local timestamp for this read event — see decision 8
+)
+```
+
+### `GET /api/v1/reading-progress`
+Auth: required
+Success: `200 OK` → `ReadingProgressResponse`
+Errors: `401 UNAUTHORIZED`, `404 NOT_FOUND` (nothing synced yet — e.g. a brand-new account)
+
+### `PUT /api/v1/reading-progress`
+Auth: required
+Request: `UpdateReadingProgressRequest`
+Success: `200 OK` → `ReadingProgressResponse` — either the newly-applied position, or the
+still-current one if `readAt` was stale (decision 8)
+Errors: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`
+
+*(No `DELETE`: resetting progress is just another `PUT`; there's no meaningful "no position at
+all" once one exists.)*
 
 ---
 
@@ -109,13 +249,13 @@ creation; only the color can be changed.
 @Serializable
 data class CreateHighlightRequest(
     val versionId: String,
-    val verses: List<VerseLocation>,   // non-empty, see decision 10
+    val verses: List<VerseLocation>,   // non-empty, see decision 17
     val color: Int                     // ARGB, same convention as UserVerse.highlightColor in the app today
 )
 
 @Serializable
 data class UpdateHighlightRequest(
-    val color: Int   // the only editable field — see decision 6 above
+    val color: Int   // the only editable field — see decision 14
 )
 
 @Serializable
@@ -130,15 +270,13 @@ data class HighlightResponse(
 )
 
 @Serializable
-data class HighlightListResponse(
-    val highlights: List<HighlightResponse>
-)
+data class HighlightListResponse(val highlights: List<HighlightResponse>)
 ```
 
 ### `GET /api/v1/highlights`
 Auth: required
 Query params: `bookId` (optional Int), `chapter` (optional Int, requires `bookId`), `updatedSince` (optional ISO-8601 — includes soft-deleted tombstones when present)
-Success: `200 OK` → `HighlightListResponse` (active highlights only, unless `updatedSince` is set; see decision 8 for filter semantics)
+Success: `200 OK` → `HighlightListResponse` (active highlights only, unless `updatedSince` is set; see decision 15 for filter semantics)
 Errors: `401 UNAUTHORIZED`
 
 ### `POST /api/v1/highlights`
@@ -155,7 +293,7 @@ Errors: `400 VALIDATION_ERROR`, `401 UNAUTHORIZED`, `404 NOT_FOUND`
 
 ### `DELETE /api/v1/highlights/{id}`
 Auth: required
-Success: `204 No Content` (soft delete — sets `deletedAt`; see decision 5)
+Success: `204 No Content` (soft delete — sets `deletedAt`; see decision 13)
 Errors: `401 UNAUTHORIZED`, `404 NOT_FOUND`
 
 ---
@@ -163,13 +301,13 @@ Errors: `401 UNAUTHORIZED`, `404 NOT_FOUND`
 ## Notes
 
 A note = a set of verses (in one version) + free text. Unlike highlights, both the text and the
-verse list can be edited in place (decision 6).
+verse list can be edited in place (decision 14).
 
 ```kotlin
 @Serializable
 data class CreateNoteRequest(
     val versionId: String,
-    val verses: List<VerseLocation>,   // non-empty, see decision 10
+    val verses: List<VerseLocation>,   // non-empty, see decision 17
     val text: String
 )
 
@@ -191,15 +329,13 @@ data class NoteResponse(
 )
 
 @Serializable
-data class NoteListResponse(
-    val notes: List<NoteResponse>
-)
+data class NoteListResponse(val notes: List<NoteResponse>)
 ```
 
 ### `GET /api/v1/notes`
 Auth: required
 Query params: `bookId` (optional Int), `chapter` (optional Int, requires `bookId`), `updatedSince` (optional ISO-8601)
-Success: `200 OK` → `NoteListResponse` (active notes only, unless `updatedSince` is set; see decision 8 for filter semantics)
+Success: `200 OK` → `NoteListResponse` (active notes only, unless `updatedSince` is set; see decision 15 for filter semantics)
 Errors: `401 UNAUTHORIZED`
 
 ### `GET /api/v1/notes/{id}`
@@ -229,13 +365,24 @@ Errors: `401 UNAUTHORIZED`, `404 NOT_FOUND`
 
 ---
 
-## Open items for the next contract pass
+## Deliberately deferred (not in v1)
 
-- Auth endpoints (`register`/`login`/`refresh`) — outlined in the roadmap PDF, not finalized here.
+- **Password reset / forgot-password flow** — needs an email-sending provider, which isn't set up
+  yet. Until then, a lost password means a lost account; worth revisiting before a wider release.
+- **Email verification on register** — same email-infrastructure dependency.
+- **Change password / change email** — straightforward additions once the account exists, but no
+  screen or need for them yet.
+- **Multi-session management** (list active devices, revoke one remotely) — `logout` only ends
+  the current device's session; there's no way yet to see or kill *other* sessions from one
+  device.
+- **Rate limiting on auth endpoints** — a Phase 5 (hardening) concern; doesn't change any shape
+  in this document, just needs enforcing before this ships publicly.
+
+## Open items carried over from Notes & Highlights
+
 - Whether highlight `color` needs validation against a fixed palette vs. accepting any ARGB int.
 - Whether verse locations should eventually be validated server-side against real per-version
-  verse counts (see decision 9) — needs the server to hold each version's `ChapterStructure`.
-- Whether `GET /highlights` needs a single-resource `GET /highlights/{id}` once/if a highlight
-  detail view is added.
-- How `verses` is persisted server-side (a `jsonb` column vs. a child table joined to the
-  highlight/note) is a Phase 3 storage decision — it doesn't change this contract either way.
+  verse counts (decision 16) — needs the server to hold each version's `ChapterStructure`.
+- Whether `GET /highlights/{id}` is needed once/if a highlight detail view is added.
+- How `verses` is persisted server-side (a `jsonb` column vs. a child table) is a Phase 3 storage
+  decision — it doesn't change this contract either way.
