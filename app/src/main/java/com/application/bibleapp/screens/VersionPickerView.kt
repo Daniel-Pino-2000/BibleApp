@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
@@ -14,6 +15,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import com.application.bibleapp.data.model.BibleTranslation
 import com.application.bibleapp.data.model.DownloadedVersionInfo
 import com.application.bibleapp.data.model.SelectedBibleVersion
@@ -281,9 +283,13 @@ private fun VersionRow(
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                } else if (isDownloaded && !isSelected) {
+                } else if (isDownloaded) {
+                    // Shown whether or not this row is the active version — keeping this
+                    // line present in both cases means selecting a downloaded row doesn't
+                    // change the row's height (it used to disappear on selection, which
+                    // made the list visibly jump).
                     Text(
-                        text = "Downloaded",
+                        text = if (isSelected) "Active version" else "Downloaded",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -342,11 +348,16 @@ private fun VersionRow(
             }
 
             if (isSelected) {
-                Text(
-                    text = "✓",
-                    color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(start = Spacing.sm)
-                )
+                // Sized to match the IconButtons above (default 48.dp touch target) so the
+                // checkmark lines up with them instead of sitting further out toward the
+                // row's edge.
+                Box(modifier = Modifier.size(48.dp), contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Default.CheckCircle,
+                        contentDescription = "Currently active",
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
             }
         }
 
