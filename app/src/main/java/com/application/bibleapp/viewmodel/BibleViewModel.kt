@@ -382,6 +382,34 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         viewModelScope.launch { switchToVersion(DEFAULT_VERSION.id) }
     }
 
+    /**
+     * Downloads [versionId] without switching to it — the picker's per-row download
+     * action, for grabbing a translation ahead of time without leaving whatever is
+     * currently being read. No-ops while any other download is in flight, same
+     * reentrancy guard as [selectVersion]/[redownloadVersion].
+     */
+    fun downloadVersion(versionId: String) {
+        if (_downloadingVersionId.value != null) return
+        _downloadInfo.value = null
+        viewModelScope.launch { downloadAndSwitch(versionId, switchAfter = false) }
+    }
+
+    /**
+     * Permanently removes [versionId]'s downloaded content from local storage (not just
+     * the in-memory picker state). Refuses to delete the version currently being read —
+     * the picker UI shouldn't even offer the action for the active version, but this is
+     * a second guard in case a row goes stale after a switch. No-ops while a download is
+     * in flight, same reentrancy guard as [selectVersion]/[redownloadVersion].
+     */
+    fun deleteVersion(versionId: String) {
+        if (versionId == _selectedVersion.value.id) return
+        if (_downloadingVersionId.value != null) return
+        viewModelScope.launch {
+            repository.deleteVersion(versionId)
+            refreshDownloadedVersions()
+        }
+    }
+
     private suspend fun switchToVersion(versionId: String) {
         _selectedVersion.value = SelectedBibleVersion(id = versionId)
         repository.saveSelectedVersion(versionId)
@@ -400,7 +428,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
         }
     }
 
-    private suspend fun downloadAndSwitch(versionId: String): Boolean {
+    private suspend fun downloadAndSwitch(versionId: String, switchAfter: Boolean = true): Boolean {
         _downloadingVersionId.value = versionId
         _downloadProgress.value = 0f
         _downloadError.value = null
@@ -418,7 +446,7 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
                     _downloadInfo.value = "Downloaded ${summary.downloadedVerseCount} verses across " +
                         "${summary.downloadedChapterCount} chapters — some books aren't available in this translation."
                 }
-                switchToVersion(versionId)
+                if (switchAfter) switchToVersion(versionId)
                 refreshDownloadedVersions()
                 true
             },

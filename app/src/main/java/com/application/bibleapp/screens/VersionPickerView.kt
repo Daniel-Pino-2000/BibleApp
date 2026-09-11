@@ -6,7 +6,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
@@ -23,11 +24,13 @@ import com.application.bibleapp.viewmodel.BibleViewModel
  * Renders each translation with one of three states, purely from what
  * [BibleViewModel.selectedVersion] and [BibleViewModel.downloadedVersions] say —
  * this composable never queries local storage itself:
- * - active (blue checkmark) — `version.id == selectedVersion.id`.
- * - downloaded, not active (gray check + "Downloaded", or a refresh icon +
+ * - active (blue checkmark) — `version.id == selectedVersion.id`. Never offered a
+ *   delete action, since it's always also downloaded.
+ * - downloaded, not active (delete icon + "Downloaded", or a refresh icon +
  *   "Update available" if [com.application.bibleapp.data.model.DownloadedVersionInfo.isUpToDate]
  *   is false) — `version.id` is a key in `downloadedVersions`.
- * - neither — tapping it downloads before switching.
+ * - neither (download icon) — tapping the row downloads then switches; tapping the
+ *   icon downloads without switching away from whatever's currently active.
  *
  * Downloaded translations are pulled out into their own "Downloaded" section at the
  * top, regardless of language, so a user's already-available versions are never
@@ -52,6 +55,31 @@ fun VersionPickerView(
     val downloadProgress by bibleViewModel.downloadProgress.collectAsState()
     val downloadError by bibleViewModel.downloadError.collectAsState()
     val downloadInfo by bibleViewModel.downloadInfo.collectAsState()
+
+    // Deleting is destructive (it wipes local content, not just this screen's state),
+    // so it's confirmed here rather than firing straight off the row's icon tap.
+    var versionPendingDelete by remember { mutableStateOf<BibleTranslation?>(null) }
+
+    versionPendingDelete?.let { version ->
+        AlertDialog(
+            onDismissRequest = { versionPendingDelete = null },
+            title = { Text("Remove ${version.displayName}?") },
+            text = { Text("This deletes the downloaded text from your device. You can download it again later.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    bibleViewModel.deleteVersion(version.id)
+                    versionPendingDelete = null
+                }) {
+                    Text("Remove", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { versionPendingDelete = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
 
@@ -169,7 +197,8 @@ fun VersionPickerView(
                         downloadProgress = downloadProgress,
                         downloadedVersions = downloadedVersions,
                         bibleViewModel = bibleViewModel,
-                        onVersionClicked = onVersionClicked
+                        onVersionClicked = onVersionClicked,
+                        onDeleteClicked = { versionPendingDelete = it }
                     )
                 }
             }
@@ -195,7 +224,8 @@ fun VersionPickerView(
                         downloadProgress = downloadProgress,
                         downloadedVersions = downloadedVersions,
                         bibleViewModel = bibleViewModel,
-                        onVersionClicked = onVersionClicked
+                        onVersionClicked = onVersionClicked,
+                        onDeleteClicked = { versionPendingDelete = it }
                     )
                 }
             }
@@ -211,7 +241,8 @@ private fun VersionRow(
     downloadProgress: Float,
     downloadedVersions: Map<String, DownloadedVersionInfo>,
     bibleViewModel: BibleViewModel,
-    onVersionClicked: () -> Unit
+    onVersionClicked: () -> Unit,
+    onDeleteClicked: (BibleTranslation) -> Unit
 ) {
     val isSelected = version.id == selectedVersion.id
     val isDownloading = version.id == downloadingVersionId
@@ -244,14 +275,6 @@ private fun VersionRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                // Every entry here already passed the standard-canon filter (see
-                // BibleRepository.getAllVersions), so this always reads "66 books" — it's
-                // a confirmation for the user, not a distinguishing detail between rows.
-                Text(
-                    text = "${version.numberOfBooks} books",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
                 if (needsUpdate) {
                     Text(
                         text = "Update available — tap ⟳ for footnotes and formatting",
@@ -291,12 +314,31 @@ private fun VersionRow(
                     )
                 }
             } else if (isDownloaded && !isSelected) {
-                Icon(
-                    Icons.Default.CheckCircle,
-                    contentDescription = "Already downloaded",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(start = Spacing.sm)
-                )
+                // Never offered for the active version — selecting a version always
+                // downloads it first, so "downloaded and selected" always holds together.
+                IconButton(
+                    enabled = downloadingVersionId == null,
+                    onClick = { onDeleteClicked(version) }
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "Remove downloaded ${version.displayName}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            } else if (!isDownloaded && !isSelected) {
+                // Downloads without switching — tapping the row itself still downloads
+                // and switches, same as before this button existed.
+                IconButton(
+                    enabled = downloadingVersionId == null,
+                    onClick = { bibleViewModel.downloadVersion(version.id) }
+                ) {
+                    Icon(
+                        Icons.Default.Download,
+                        contentDescription = "Download ${version.displayName}",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
 
             if (isSelected) {

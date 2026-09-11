@@ -237,6 +237,11 @@ class BibleRepository(
         return downloadVersion(translationId, onProgress)
     }
 
+    /** Permanently removes [versionId]'s downloaded content. No-ops for the bundled "kjv". */
+    suspend fun deleteVersion(versionId: String) = withContext(Dispatchers.IO) {
+        BibleDatabaseManager.deleteDownloadedVersion(context, versionId)
+    }
+
     /** Persisted across process restarts so the app reopens on the last version the user picked. */
     fun saveSelectedVersion(versionId: String) {
         prefs.edit().putString(KEY_SELECTED_VERSION, versionId).apply()
