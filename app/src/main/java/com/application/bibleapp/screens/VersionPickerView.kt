@@ -34,10 +34,11 @@ import com.application.bibleapp.viewmodel.BibleViewModel
  * - neither (download icon) — tapping the row downloads then switches; tapping the
  *   icon downloads without switching away from whatever's currently active.
  *
- * Downloaded translations are pulled out into their own "Downloaded" section at the
- * top, regardless of language, so a user's already-available versions are never
- * buried inside a language group they'd have to scroll to find. The language
- * groups below only list the not-yet-downloaded translations for that language.
+ * Downloaded translations get a shortcut "Downloaded" section at the top, regardless
+ * of language, so they're never buried inside a language group the user would have to
+ * scroll to find. They also still appear under their own language group below — this
+ * is a deliberate duplicate listing, not a bug, so browsing by language always shows
+ * every translation for that language in one place.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -164,18 +165,15 @@ fun VersionPickerView(
             return@Column
         }
 
-        // Downloaded translations are pulled out of their language groups into one
-        // section up top (order preserved from the language-sorted groups, so it
-        // still reads alphabetically by language/name rather than by download time).
+        // Downloaded translations get a shortcut section up top for fast access without
+        // scrolling (order preserved from the language-sorted groups). They also still
+        // appear a second time under their own language group below, so browsing by
+        // language never looks like a version is "missing" from where you'd expect it.
         // Everything here is already search-filtered, since it's derived from
         // groupedVersions rather than the raw availableVersions list.
         val downloadedTranslations = groupedVersions
             .flatMap { it.translations }
             .filter { downloadedVersions.containsKey(it.id) }
-        val languageGroupsWithoutDownloaded = groupedVersions.mapNotNull { group ->
-            val remaining = group.translations.filterNot { downloadedVersions.containsKey(it.id) }
-            if (remaining.isEmpty()) null else group.copy(translations = remaining)
-        }
 
         LazyColumn {
             if (downloadedTranslations.isNotEmpty()) {
@@ -191,7 +189,10 @@ fun VersionPickerView(
                     }
                 }
 
-                items(downloadedTranslations, key = { it.id }) { version ->
+                // Keys are namespaced per section — a downloaded translation's id also
+                // appears in its language group below, and LazyColumn keys must be
+                // unique across the whole list, not just within one items() call.
+                items(downloadedTranslations, key = { "downloaded-${it.id}" }) { version ->
                     VersionRow(
                         version = version,
                         selectedVersion = selectedVersion,
@@ -205,7 +206,7 @@ fun VersionPickerView(
                 }
             }
 
-            languageGroupsWithoutDownloaded.forEach { group ->
+            groupedVersions.forEach { group ->
                 stickyHeader {
                     Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
                         Text(
@@ -218,7 +219,7 @@ fun VersionPickerView(
                     }
                 }
 
-                items(group.translations, key = { it.id }) { version ->
+                items(group.translations, key = { "lang-${it.id}" }) { version ->
                     VersionRow(
                         version = version,
                         selectedVersion = selectedVersion,
