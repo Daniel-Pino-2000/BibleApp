@@ -166,14 +166,19 @@ fun VersionPickerView(
         }
 
         // Downloaded translations get a shortcut section up top for fast access without
-        // scrolling (order preserved from the language-sorted groups). They also still
-        // appear a second time under their own language group below, so browsing by
-        // language never looks like a version is "missing" from where you'd expect it.
-        // Everything here is already search-filtered, since it's derived from
-        // groupedVersions rather than the raw availableVersions list.
-        val downloadedTranslations = groupedVersions
-            .flatMap { it.translations }
-            .filter { downloadedVersions.containsKey(it.id) }
+        // scrolling when just browsing (order preserved from the language-sorted
+        // groups), and also still appear a second time under their own language group
+        // below, so browsing by language never looks like a version is "missing" from
+        // where you'd expect it. Once a search is active, that shortcut stops earning
+        // its keep — a match's Downloaded/Active status is already on the row, so
+        // duplicating it up top is just noise — so the section only shows up empty-query.
+        val downloadedTranslations = if (searchQuery.isBlank()) {
+            groupedVersions
+                .flatMap { it.translations }
+                .filter { downloadedVersions.containsKey(it.id) }
+        } else {
+            emptyList()
+        }
 
         LazyColumn {
             if (downloadedTranslations.isNotEmpty()) {
