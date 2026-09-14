@@ -34,6 +34,10 @@ dependencies {
 
     implementation(libs.logback.classic)
 
+    implementation(libs.password.hashing)
+
     testImplementation(libs.ktor.server.test.host)
     testImplementation(kotlin("test"))
+
+
 }

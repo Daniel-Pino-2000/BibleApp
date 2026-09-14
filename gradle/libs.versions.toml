@@ -16,6 +16,7 @@ exposed = "0.61.0"
 postgresql = "42.7.7"
 logback = "1.6.3"
 kotlinxSerializationJson = "1.6.3"
+hashing = "0.4"
 
 [libraries]
 androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
@@ -57,6 +58,8 @@ postgresql = { group = "org.postgresql", name = "postgresql", version.ref = "pos
 
 # Logging
 logback-classic = { group = "ch.qos.logback", name = "logback-classic", version.ref = "logback" }
+password-hashing = { group = "org.mindrot", name = "jbcrypt", version.ref = "hashing"}
+
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
