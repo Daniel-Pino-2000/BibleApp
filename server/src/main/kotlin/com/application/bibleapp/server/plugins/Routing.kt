@@ -9,12 +9,16 @@ import io.ktor.server.application.install
 import io.ktor.server.plugins.statuspages.StatusPages
 import io.ktor.server.response.respond
 import io.ktor.server.routing.get
+import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
 
 fun Application.configureRouting() {
     install(StatusPages) {
         exception<Throwable> { call, cause ->
-            call.respond(HttpStatusCode.InternalServerError, ErrorResponse(cause.message ?: "Unknown error"))
+            call.respond(HttpStatusCode.InternalServerError, ErrorResponse(
+                code = "INTERNAL_ERROR",
+                message = "An unexpected error occurred"
+            ))
         }
     }
 
@@ -23,7 +27,9 @@ fun Application.configureRouting() {
             call.respond(HttpStatusCode.OK, mapOf("status" to "ok"))
         }
 
-        authRoutes()
-        syncRoutes()
+        route("/api/v1") {
+            authRoutes()
+            syncRoutes()
+        }
     }
 }
