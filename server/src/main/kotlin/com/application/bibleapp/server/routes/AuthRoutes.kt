@@ -60,15 +60,15 @@ fun Route.authRoutes() {
 
         val userId = transaction {
             Users.insert {
-                it[email] = request.email
+                it[Users.email] = request.email
                 it[Users.passwordHash] = passwordHash
-                it[createdAt] = Instant.now()
+                it[Users.createdAt] = Instant.now()
             } get Users.id
         }
 
         val jwtConfig = call.application.getJwtConfig()
 
-        val expiresInSeconds = 900L
+        val expiresInSeconds = JwtIssuer.ACCESS_TOKEN_EXPIRES_IN_SECONDS
 
         val accessToken = JwtIssuer.issueAccessToken(
             secret = jwtConfig.secret,
@@ -82,8 +82,8 @@ fun Route.authRoutes() {
             HttpStatusCode.Created,
             AuthResponse(
                 userId = userId.toString(),
-                accessToken = "TODO-real-jwt",
-                accessTokenExpiresInSeconds = 900,
+                accessToken = accessToken,
+                accessTokenExpiresInSeconds = expiresInSeconds,
                 refreshToken = "TODO-real-jwt"
             )
         )

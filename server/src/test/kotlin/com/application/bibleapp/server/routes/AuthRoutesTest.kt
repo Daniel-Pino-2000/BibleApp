@@ -1,7 +1,10 @@
 package com.application.bibleapp.server.routes
 
+import com.application.bibleapp.server.auth.JwtIssuer
 import com.application.bibleapp.server.models.AuthResponse
 import com.application.bibleapp.server.models.RegisterRequest
+import com.auth0.jwt.JWT
+import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
@@ -52,7 +55,21 @@ class AuthRoutesTest {
         // A valid userId must parse as a UUID - UUID.fromString throws IllegalArgumentException
         // (which fails the test) if the string isn't one.
         UUID.fromString(authResponse.userId)
-        assertEquals("TODO-real-jwt", authResponse.accessToken)
+
+        // Verify the returned access token is a real, validly-signed JWT for this user.
+        // Re-issuing a second token locally and comparing strings (the earlier approach)
+        // would fail almost every run even for a correct implementation: the server signs
+        // its token at one millisecond and the test would sign its own comparison token at a
+        // later millisecond, so the "exp" claim - and therefore the whole signed token -
+        // would practically never match byte-for-byte.
+        val decoded = JWT.require(Algorithm.HMAC256("changeme-dev-secret"))
+            .withIssuer("bibleapp-server")
+            .withAudience("bibleapp-users")
+            .build()
+            .verify(authResponse.accessToken)
+
+        assertEquals(authResponse.userId, decoded.subject)
+        assertEquals(JwtIssuer.ACCESS_TOKEN_EXPIRES_IN_SECONDS, authResponse.accessTokenExpiresInSeconds)
         assertEquals("TODO-real-jwt", authResponse.refreshToken)
     }
 

@@ -23,10 +23,8 @@ fun Application.configureSecurity() {
                     .build()
             )
             validate { credential ->
-                // TODO: design the token's claim set alongside the API contract
-                // (see docs/API_Integration_Guide.pdf), then validate real claims here
-                // instead of just checking the audience.
-                if (credential.payload.audience.contains(jwtConfig.audience)) {
+                if (credential.payload.audience.contains(jwtConfig.audience) &&
+                    credential.payload.subject != null) {
                     JWTPrincipal(credential.payload)
                 } else {
                     null
