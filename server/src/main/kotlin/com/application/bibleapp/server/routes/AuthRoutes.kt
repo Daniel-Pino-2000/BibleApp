@@ -1,6 +1,8 @@
 package com.application.bibleapp.server.routes
 
+import com.application.bibleapp.server.auth.JwtIssuer
 import com.application.bibleapp.server.auth.PasswordHasher
+import com.application.bibleapp.server.auth.getJwtConfig
 import com.application.bibleapp.server.db.tables.Users
 import com.application.bibleapp.server.models.AuthResponse
 import com.application.bibleapp.server.models.ErrorResponse
@@ -58,18 +60,30 @@ fun Route.authRoutes() {
 
         val userId = transaction {
             Users.insert {
-                it[Users.email] = request.email
+                it[email] = request.email
                 it[Users.passwordHash] = passwordHash
-                it[Users.createdAt] = Instant.now()
+                it[createdAt] = Instant.now()
             } get Users.id
         }
+
+        val jwtConfig = call.application.getJwtConfig()
+
+        val expiresInSeconds = 900L
+
+        val accessToken = JwtIssuer.issueAccessToken(
+            secret = jwtConfig.secret,
+            issuer = jwtConfig.issuer,
+            audience = jwtConfig.audience,
+            userId = userId,
+            expiresInSeconds = expiresInSeconds
+        )
 
         call.respond(
             HttpStatusCode.Created,
             AuthResponse(
                 userId = userId.toString(),
                 accessToken = "TODO-real-jwt",
-                accessTokenExpiresInSeconds = 0,
+                accessTokenExpiresInSeconds = 900,
                 refreshToken = "TODO-real-jwt"
             )
         )
