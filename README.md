@@ -9,8 +9,9 @@ Version and on-demand downloads of other translations for fully offline reading.
 translation downloads, full-text search, footnotes, poem/heading formatting) works today.
 Two larger pieces are still ahead:
 
-- **User accounts and sync** — a [Ktor](https://ktor.io) backend for authentication and
-  persisting user data (bookmarks, reading progress, notes) across devices.
+- **User accounts and sync** — a [Ktor](https://ktor.io) backend (Exposed ORM, PostgreSQL,
+  JWT authentication) for user accounts and persisting user data (bookmarks, reading
+  progress, notes) across devices. In active development on a feature branch.
 - **Bible chatbot** — an in-app assistant for answering Bible-related questions.
 
 ## Screenshots
