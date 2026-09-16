@@ -1,5 +1,8 @@
 package com.application.bibleapp.server.plugins
 
+import com.application.bibleapp.server.db.tables.Highlights
+import com.application.bibleapp.server.db.tables.Notes
+import com.application.bibleapp.server.db.tables.ReadingProgress
 import com.application.bibleapp.server.db.tables.RefreshTokens
 import com.application.bibleapp.server.db.tables.Users
 import io.ktor.server.application.Application
@@ -21,7 +24,7 @@ fun Application.configureDatabases() {
     // query can run, so a separate standalone connectivity check would be redundant.
     // Users must be created before the tables that reference it via a foreign key.
     transaction(database) {
-        SchemaUtils.create(Users, RefreshTokens)
+        SchemaUtils.create(Users, RefreshTokens, Highlights, Notes, ReadingProgress)
     }
 
     // For anything beyond a hobby-scale schema, prefer a real migration tool (e.g. Flyway)
