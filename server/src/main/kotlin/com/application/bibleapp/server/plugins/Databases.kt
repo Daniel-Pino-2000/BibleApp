@@ -1,5 +1,6 @@
 package com.application.bibleapp.server.plugins
 
+import com.application.bibleapp.server.db.tables.RefreshTokens
 import com.application.bibleapp.server.db.tables.Users
 import io.ktor.server.application.Application
 import org.jetbrains.exposed.sql.Database
@@ -17,12 +18,12 @@ fun Application.configureDatabases() {
     )
 
     // Also proves the connection itself works: SchemaUtils.create only succeeds if a real
-    // query can run, so the old standalone "SELECT 1" check is redundant now.
+    // query can run, so a separate standalone connectivity check would be redundant.
+    // Users must be created before the tables that reference it via a foreign key.
     transaction(database) {
-        SchemaUtils.create(Users)
+        SchemaUtils.create(Users, RefreshTokens)
     }
 
-    // TODO: add each new table here as it's created (Highlights, Notes, ReadingProgress,
-    // RefreshTokens...). For anything beyond a hobby-scale schema, prefer a real migration
-    // tool (e.g. Flyway) over SchemaUtils.create so changes are versioned.
+    // For anything beyond a hobby-scale schema, prefer a real migration tool (e.g. Flyway)
+    // over SchemaUtils.create so schema changes are versioned instead of inferred at startup.
 }

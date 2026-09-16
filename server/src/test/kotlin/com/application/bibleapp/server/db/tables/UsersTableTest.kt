@@ -2,18 +2,20 @@ package com.application.bibleapp.server.db.tables
 
 import org.jetbrains.exposed.sql.Database
 import org.jetbrains.exposed.sql.SchemaUtils
+import org.jetbrains.exposed.sql.deleteWhere
 import org.jetbrains.exposed.sql.insert
 import org.jetbrains.exposed.sql.selectAll
 import org.jetbrains.exposed.sql.transactions.transaction
 import java.time.Instant
+import java.util.UUID
 import kotlin.test.AfterTest
 import kotlin.test.BeforeTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
 // TODO: this points directly at the local dev Postgres container so it's easy to run right
-// now. Once more tables exist it's worth switching to a dedicated test database (H2 in-memory,
-// or Testcontainers) instead of sharing the dev DB — see the roadmap PDF, Section 2.
+// now. Worth switching to a dedicated test database (H2 in-memory, or Testcontainers) instead
+// of sharing the dev DB — see the roadmap PDF, Section 2.
 class UsersTableTest {
 
     private val database = Database.connect(
@@ -23,30 +25,39 @@ class UsersTableTest {
         password = "postgres"
     )
 
+    // A fresh email per test run so this test never collides with itself or with other tests
+    // sharing this same database.
+    private val testEmail = "userstabletest+${UUID.randomUUID()}@example.com"
+
     @BeforeTest
     fun createSchema() = transaction(database) {
         SchemaUtils.create(Users)
     }
 
     @AfterTest
-    fun dropSchema() = transaction(database) {
-        // Users.email is unique, so leftover rows from a previous run would break the next
-        // one's insert — dropping the table after each test keeps them independent.
-        SchemaUtils.drop(Users)
+    fun deleteTestRow() {
+        // Deletes just the row this test inserted, rather than dropping the whole Users table:
+        // RefreshTokens/Highlights/Notes/ReadingProgress all declare a foreign key to Users.id,
+        // so dropping Users while any of those tables also exist in this shared dev database
+        // would fail with a "depended on by other objects" error. Block body (not `= expr`) so
+        // this stays Unit-returning - deleteWhere returns an Int, and @AfterTest requires void.
+        transaction(database) {
+            Users.deleteWhere { with(it) { email eq testEmail } }
+        }
     }
 
     @Test
     fun insertedUserCanBeReadBackByEmail() = transaction(database) {
         val insertedId = Users.insert {
-            it[email] = "test@example.com"
+            it[email] = testEmail
             it[passwordHash] = "hashed-password"
             it[createdAt] = Instant.now()
         }[Users.id]
 
-        val row = Users.selectAll().where { Users.email eq "test@example.com" }.single()
+        val row = Users.selectAll().where { Users.email eq testEmail }.single()
 
         assertEquals(insertedId, row[Users.id])
-        assertEquals("test@example.com", row[Users.email])
+        assertEquals(testEmail, row[Users.email])
         assertEquals("hashed-password", row[Users.passwordHash])
     }
 }

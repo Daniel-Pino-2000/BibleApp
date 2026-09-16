@@ -1,11 +1,18 @@
 package com.application.bibleapp.server.routes
 
 import com.application.bibleapp.server.auth.JwtIssuer
+import com.application.bibleapp.server.auth.RefreshTokenIssuer
+import com.application.bibleapp.server.db.tables.RefreshTokens
 import com.application.bibleapp.server.models.AuthResponse
+import com.application.bibleapp.server.models.ErrorResponse
+import com.application.bibleapp.server.models.LoginRequest
+import com.application.bibleapp.server.models.LogoutRequest
+import com.application.bibleapp.server.models.RefreshRequest
 import com.application.bibleapp.server.models.RegisterRequest
 import com.auth0.jwt.JWT
 import com.auth0.jwt.algorithms.Algorithm
 import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
+import io.ktor.client.request.bearerAuth
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.bodyAsText
@@ -16,9 +23,13 @@ import io.ktor.serialization.kotlinx.json.json
 import io.ktor.server.config.ApplicationConfig
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
+import org.jetbrains.exposed.sql.selectAll
+import org.jetbrains.exposed.sql.transactions.transaction
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNotNull
 
 // TODO: registered users accumulate in the shared dev Postgres across test runs since there's
 // no cleanup (same known simplification as UsersTableTest). Generating a unique email per test
@@ -70,7 +81,16 @@ class AuthRoutesTest {
 
         assertEquals(authResponse.userId, decoded.subject)
         assertEquals(JwtIssuer.ACCESS_TOKEN_EXPIRES_IN_SECONDS, authResponse.accessTokenExpiresInSeconds)
-        assertEquals("TODO-real-jwt", authResponse.refreshToken)
+
+        // The refresh token itself is never stored - only its hash - so the only way to prove
+        // register actually persisted a session is to re-hash the raw token the same way
+        // RefreshTokenIssuer does, and confirm a row with that exact hash exists.
+        val storedHash = RefreshTokenIssuer.hash(authResponse.refreshToken)
+        val refreshTokenRow = transaction {
+            RefreshTokens.selectAll().where { RefreshTokens.tokenHash eq storedHash }.singleOrNull()
+        }
+        assertNotNull(refreshTokenRow, "expected a RefreshTokens row matching the returned refresh token")
+        assertEquals(UUID.fromString(authResponse.userId), refreshTokenRow[RefreshTokens.userId])
     }
 
     @Test
@@ -98,5 +118,140 @@ class AuthRoutesTest {
             setBody(request)
         }
         assertEquals(HttpStatusCode.Conflict, secondResponse.status)
+    }
+
+    @Test
+    fun verifyLoginWithCorrectCredentialsSucceeds() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val user = client.registerTestUser()
+
+        val response = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = user.email, password = user.password))
+        }
+
+        assertEquals(HttpStatusCode.OK, response.status)
+        val authResponse = Json.decodeFromString<AuthResponse>(response.bodyAsText())
+        assertEquals(user.auth.userId, authResponse.userId)
+        // A fresh session, not the same one register created.
+        assertNotEquals(user.auth.refreshToken, authResponse.refreshToken)
+    }
+
+    @Test
+    fun verifyLoginWithWrongPasswordFails() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val user = client.registerTestUser()
+
+        val response = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = user.email, password = "the-wrong-password"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        val error = Json.decodeFromString<ErrorResponse>(response.bodyAsText())
+        assertEquals("INVALID_CREDENTIALS", error.code)
+    }
+
+    @Test
+    fun verifyLoginWithUnknownEmailFailsWithTheSameErrorAsWrongPassword() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val response = client.post("/api/v1/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequest(email = "no-such-user+${UUID.randomUUID()}@example.com", password = "whatever123"))
+        }
+
+        // Same status and code as a wrong password - the API should never let a caller tell
+        // "no such account" apart from "wrong password" (docs/api_contract.md decision 4).
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+        val error = Json.decodeFromString<ErrorResponse>(response.bodyAsText())
+        assertEquals("INVALID_CREDENTIALS", error.code)
+    }
+
+    @Test
+    fun verifyRefreshRotatesTheTokenAndRejectsReuseOfTheOldOne() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val user = client.registerTestUser()
+
+        val firstRefreshResponse = client.post("/api/v1/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken = user.auth.refreshToken))
+        }
+        assertEquals(HttpStatusCode.OK, firstRefreshResponse.status)
+        val rotated = Json.decodeFromString<AuthResponse>(firstRefreshResponse.bodyAsText())
+        assertNotEquals(user.auth.refreshToken, rotated.refreshToken)
+
+        // Reusing the token /auth/refresh just consumed must fail - it was rotated away, and
+        // reuse of an already-rotated token is treated as a possible compromise signal, not a
+        // normal retry (docs/api_contract.md decision 2).
+        val reuseResponse = client.post("/api/v1/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken = user.auth.refreshToken))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, reuseResponse.status)
+
+        // The newly-rotated token must still work.
+        val secondRefreshResponse = client.post("/api/v1/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken = rotated.refreshToken))
+        }
+        assertEquals(HttpStatusCode.OK, secondRefreshResponse.status)
+    }
+
+    @Test
+    fun verifyRefreshWithAnUnknownTokenFails() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val response = client.post("/api/v1/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken = "not-a-real-token"))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
+    }
+
+    @Test
+    fun verifyLogoutRevokesThatSessionsRefreshToken() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val user = client.registerTestUser()
+
+        val logoutResponse = client.post("/api/v1/auth/logout") {
+            contentType(ContentType.Application.Json)
+            bearerAuth(user.auth.accessToken)
+            setBody(LogoutRequest(refreshToken = user.auth.refreshToken))
+        }
+        assertEquals(HttpStatusCode.NoContent, logoutResponse.status)
+
+        // The refresh token logout just revoked must no longer work.
+        val refreshAfterLogout = client.post("/api/v1/auth/refresh") {
+            contentType(ContentType.Application.Json)
+            setBody(RefreshRequest(refreshToken = user.auth.refreshToken))
+        }
+        assertEquals(HttpStatusCode.Unauthorized, refreshAfterLogout.status)
+    }
+
+    @Test
+    fun verifyLogoutWithoutAnAccessTokenFails() = testApplication {
+        environment { config = ApplicationConfig("application.conf") }
+        val client = createClient { install(ContentNegotiation) { json() } }
+
+        val user = client.registerTestUser()
+
+        val response = client.post("/api/v1/auth/logout") {
+            contentType(ContentType.Application.Json)
+            setBody(LogoutRequest(refreshToken = user.auth.refreshToken))
+        }
+
+        assertEquals(HttpStatusCode.Unauthorized, response.status)
     }
 }

@@ -3,6 +3,7 @@ package com.application.bibleapp.server.plugins
 import com.application.bibleapp.server.models.ErrorResponse
 import com.application.bibleapp.server.routes.authRoutes
 import com.application.bibleapp.server.routes.syncRoutes
+import com.application.bibleapp.server.routes.userRoutes
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.application.Application
 import io.ktor.server.application.install
@@ -29,6 +30,7 @@ fun Application.configureRouting() {
 
         route("/api/v1") {
             authRoutes()
+            userRoutes()
             syncRoutes()
         }
     }
