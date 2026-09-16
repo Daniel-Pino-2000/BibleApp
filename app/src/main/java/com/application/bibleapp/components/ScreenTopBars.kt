@@ -93,3 +93,29 @@ fun SettingsTopBar() {
         title = { Text("Settings") }
     )
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun LoginTopBar(onBackClick: () -> Unit) {
+    TopBar(
+        title = { Text("Sign In") },
+        navigationIcon = {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+        }
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun RegisterTopBar(onBackClick: () -> Unit) {
+    TopBar(
+        title = { Text("Create Account") },
+        navigationIcon = {
+            IconButton(onClick = onBackClick) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+            }
+        }
+    )
+}

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Debug-build only (merged from src/debug, never src/release) — allows plain HTTP to the
+  local dev backend. Android blocks cleartext traffic by default from API 28+, but the Ktor
+  dev server isn't behind HTTPS, so requests to it would otherwise fail outright.
+
+  10.0.2.2 is the Android emulator's alias for the host machine's localhost — see
+  HttpClientProvider.BASE_URL. Testing on a real device instead of the emulator needs the
+  host machine's actual LAN IP added here too (this file only, so it's still debug-only).
+-->
+<network-security-config>
+    <domain-config cleartextTrafficPermitted="true">
+        <domain includeSubdomains="false">10.0.2.2</domain>
+    </domain-config>
+</network-security-config>

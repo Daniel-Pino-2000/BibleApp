@@ -17,8 +17,10 @@ import com.application.bibleapp.data.model.chapterCount
 import com.application.bibleapp.data.model.resolveDailyVerseUI
 import com.application.bibleapp.data.remote.LanguageGroup
 import com.application.bibleapp.data.remote.groupVersionsByLanguage
+import com.application.bibleapp.data.repository.AuthRepository
 import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.data.repository.NotificationTime
+import com.application.bibleapp.data.repository.ReadingProgressRepository
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -46,7 +48,11 @@ import kotlinx.coroutines.launch
  * touch the downloaded set, and a download in progress doesn't change which
  * version is currently selected until it finishes.
  */
-class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
+class BibleViewModel(
+    private val repository: BibleRepository,
+    private val authRepository: AuthRepository,
+    private val readingProgressRepository: ReadingProgressRepository
+) : ViewModel() {
 
     private val _verses = MutableStateFlow<List<VerseUI>>(emptyList())
     val verses: StateFlow<List<VerseUI>> = _verses.asStateFlow()
@@ -209,6 +215,31 @@ class BibleViewModel(private val repository: BibleRepository) : ViewModel() {
             val verse = verseId.coerceIn(1, chapterData.size.coerceAtLeast(1))
             _currentVerse.value = verse
             repository.saveReadingPosition(bookId, chapterId, verse)
+            syncReadingProgressToServer(versionId, bookId, chapterId, verse)
+        }
+    }
+
+    /** Fire-and-forget: a failed background sync shouldn't interrupt someone just reading —
+     *  the position is already safely saved locally via [BibleRepository.saveReadingPosition]
+     *  regardless of whether this succeeds. No-ops when signed out. */
+    private fun syncReadingProgressToServer(versionId: String, bookId: Int, chapter: Int, verse: Int) {
+        if (!authRepository.isLoggedIn) return
+        viewModelScope.launch {
+            readingProgressRepository.updateProgress(versionId, bookId, chapter, verse)
+        }
+    }
+
+    /** Pulls the position saved from any other device and jumps there — called right after a
+     *  successful login/register (see Navigation.kt), so signing in on a new device picks up
+     *  where the user left off elsewhere instead of staying on this device's local position. */
+    fun syncReadingProgressFromServer() {
+        if (!authRepository.isLoggedIn) return
+        viewModelScope.launch {
+            readingProgressRepository.getProgress().onSuccess { remote ->
+                if (remote != null) {
+                    loadChapter(remote.bookId, remote.chapter, remote.verse)
+                }
+            }
         }
     }
 

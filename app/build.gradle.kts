@@ -54,6 +54,12 @@ dependencies {
     implementation("io.ktor:ktor-client-cio:2.3.8")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.8")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.8")
+    // Automatically attaches "Authorization: Bearer <token>" to backend requests and
+    // transparently retries with a refreshed token on a 401 - see HttpClientProvider.
+    implementation("io.ktor:ktor-client-auth:2.3.8")
+
+    // Encrypted on-disk storage for the access/refresh tokens - see data/local/TokenStore.kt
+    implementation("androidx.security:security-crypto:1.1.0")
 
 
     // Icons

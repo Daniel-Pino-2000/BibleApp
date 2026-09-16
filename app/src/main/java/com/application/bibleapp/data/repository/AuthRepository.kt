@@ -1,0 +1,121 @@
+package com.application.bibleapp.data.repository
+
+import android.content.Context
+import com.application.bibleapp.data.local.TokenStore
+import com.application.bibleapp.data.remote.AuthResponseDto
+import com.application.bibleapp.data.remote.BackendErrorResponseDto
+import com.application.bibleapp.data.remote.DeleteAccountRequestDto
+import com.application.bibleapp.data.remote.HttpClientProvider
+import com.application.bibleapp.data.remote.LoginRequestDto
+import com.application.bibleapp.data.remote.LogoutRequestDto
+import com.application.bibleapp.data.remote.RegisterRequestDto
+import com.application.bibleapp.data.remote.UserResponseDto
+import io.ktor.client.call.body
+import io.ktor.client.request.delete
+import io.ktor.client.request.get
+import io.ktor.client.request.post
+import io.ktor.client.request.setBody
+import io.ktor.client.statement.HttpResponse
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import io.ktor.http.isSuccess
+
+/**
+ * A specific, user-facing failure reason for an auth action, extracted from the backend's
+ * ErrorResponse.code (server/docs/api_contract.md) rather than left as a raw HTTP status —
+ * so the UI can show "Invalid email or password" instead of "request failed: 401".
+ */
+sealed class AuthError(val displayMessage: String) {
+    data object InvalidCredentials : AuthError("Invalid email or password")
+    data object EmailAlreadyRegistered : AuthError("An account with that email already exists")
+    data class Validation(val fieldErrors: Map<String, String>) :
+        AuthError(fieldErrors.values.firstOrNull() ?: "Invalid input")
+    data class Unknown(val text: String) : AuthError(text)
+}
+
+/** Wraps an [AuthError] as a throwable so it can travel through [Result.failure] and be
+ *  pattern-matched back out in the UI layer via [AuthException.error]. */
+class AuthException(val error: AuthError) : Exception(error.displayMessage)
+
+/**
+ * Handles register/login/logout and the current account, talking to the backend's Auth and
+ * Account endpoints. Successful register/login save the returned session into [TokenStore];
+ * every other authenticated request in the app (HighlightRepository, etc.) then picks that
+ * session up automatically via HttpClientProvider's Auth plugin — nothing else in the app
+ * needs to touch tokens directly.
+ */
+class AuthRepository(context: Context) {
+
+    private val tokenStore = TokenStore(context.applicationContext)
+    private val client get() = HttpClientProvider.client
+    private val baseUrl get() = HttpClientProvider.BASE_URL
+
+    val isLoggedIn: Boolean get() = tokenStore.isLoggedIn
+    val currentUserId: String? get() = tokenStore.userId
+
+    suspend fun register(email: String, password: String): Result<Unit> {
+        val response = client.post("$baseUrl/auth/register") {
+            contentType(ContentType.Application.Json)
+            setBody(RegisterRequestDto(email, password))
+        }
+        return saveSessionOrFail(response)
+    }
+
+    suspend fun login(email: String, password: String): Result<Unit> {
+        val response = client.post("$baseUrl/auth/login") {
+            contentType(ContentType.Application.Json)
+            setBody(LoginRequestDto(email, password))
+        }
+        return saveSessionOrFail(response)
+    }
+
+    /**
+     * Always clears the local session, even if the network call to revoke it on the server
+     * fails (e.g. no connectivity) — a user asking to sign out on this device shouldn't be
+     * blocked by that. The server-side revocation is best-effort on top of that.
+     */
+    suspend fun logout() {
+        val refreshToken = tokenStore.refreshToken
+        tokenStore.clear()
+        if (refreshToken == null) return
+        runCatching {
+            client.post("$baseUrl/auth/logout") {
+                contentType(ContentType.Application.Json)
+                setBody(LogoutRequestDto(refreshToken))
+            }
+        }
+    }
+
+    suspend fun getCurrentUser(): Result<UserResponseDto> = runCatching {
+        val response = client.get("$baseUrl/users/me")
+        if (!response.status.isSuccess()) throw toAuthException(response)
+        response.body()
+    }
+
+    suspend fun deleteAccount(password: String): Result<Unit> = runCatching {
+        val response = client.delete("$baseUrl/users/me") {
+            contentType(ContentType.Application.Json)
+            setBody(DeleteAccountRequestDto(password))
+        }
+        if (!response.status.isSuccess()) throw toAuthException(response)
+        tokenStore.clear()
+    }
+
+    private suspend fun saveSessionOrFail(response: HttpResponse): Result<Unit> {
+        if (!response.status.isSuccess()) return Result.failure(toAuthException(response))
+        val auth = response.body<AuthResponseDto>()
+        tokenStore.saveSession(auth.userId, auth.accessToken, auth.refreshToken)
+        return Result.success(Unit)
+    }
+
+    private suspend fun toAuthException(response: HttpResponse): AuthException {
+        val error = runCatching { response.body<BackendErrorResponseDto>() }.getOrNull()
+        val authError = when (error?.code) {
+            "INVALID_CREDENTIALS" -> AuthError.InvalidCredentials
+            "EMAIL_ALREADY_REGISTERED" -> AuthError.EmailAlreadyRegistered
+            "VALIDATION_ERROR" -> AuthError.Validation(error.fieldErrors ?: emptyMap())
+            else -> AuthError.Unknown(error?.message ?: "Something went wrong (${response.status.value})")
+        }
+        return AuthException(authError)
+    }
+}
