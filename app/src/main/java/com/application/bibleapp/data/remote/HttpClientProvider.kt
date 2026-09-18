@@ -36,9 +36,11 @@ object HttpClientProvider {
      * The backend server's API root — see server/docs/api_contract.md for what lives under
      * it. 10.0.2.2 is the Android emulator's alias for the host machine's own localhost, so
      * this talks to the Ktor dev server (./gradlew :server:run) running on the same machine
-     * as the emulator. Testing on a real device instead needs this changed to the host
+     * as the emulator — run the app on an emulator, not a physical device, while this is
+     * pointed here. Testing on a real device instead needs this changed to the host
      * machine's actual LAN IP (and that IP added to src/debug/res/xml/network_security_config.xml
-     * — plain HTTP is blocked by default and only allowed there for the debug build).
+     * — plain HTTP is blocked by default and only allowed there for the debug build); that's
+     * been deliberately deferred until the server is actually deployed somewhere reachable.
      * Not runtime-configurable yet since there's nowhere to deploy this publicly — see the
      * roadmap PDF's Phase 5 (hardening & deploy), which hasn't happened yet.
      */

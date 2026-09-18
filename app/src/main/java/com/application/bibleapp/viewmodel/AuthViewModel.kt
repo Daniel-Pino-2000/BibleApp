@@ -93,6 +93,12 @@ class AuthViewModel(private val authRepository: AuthRepository) : ViewModel() {
         }
     }
 
-    private fun errorText(throwable: Throwable): String =
-        (throwable as? AuthException)?.error?.displayMessage ?: (throwable.message ?: "Something went wrong")
+    private fun errorText(throwable: Throwable): String = when {
+        throwable is AuthException -> throwable.error.displayMessage
+        // Covers Ktor's ConnectTimeoutException/SocketTimeoutException and plain
+        // UnknownHostException — anything where the request never actually reached the
+        // server, as opposed to the server responding with an error.
+        throwable is java.io.IOException -> "Couldn't reach the server. Check your connection and try again."
+        else -> throwable.message ?: "Something went wrong"
+    }
 }

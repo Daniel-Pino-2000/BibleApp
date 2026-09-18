@@ -53,20 +53,20 @@ class AuthRepository(context: Context) {
     val isLoggedIn: Boolean get() = tokenStore.isLoggedIn
     val currentUserId: String? get() = tokenStore.userId
 
-    suspend fun register(email: String, password: String): Result<Unit> {
+    suspend fun register(email: String, password: String): Result<Unit> = runCatching {
         val response = client.post("$baseUrl/auth/register") {
             contentType(ContentType.Application.Json)
             setBody(RegisterRequestDto(email, password))
         }
-        return saveSessionOrFail(response)
+        saveSession(response)
     }
 
-    suspend fun login(email: String, password: String): Result<Unit> {
+    suspend fun login(email: String, password: String): Result<Unit> = runCatching {
         val response = client.post("$baseUrl/auth/login") {
             contentType(ContentType.Application.Json)
             setBody(LoginRequestDto(email, password))
         }
-        return saveSessionOrFail(response)
+        saveSession(response)
     }
 
     /**
@@ -101,11 +101,10 @@ class AuthRepository(context: Context) {
         tokenStore.clear()
     }
 
-    private suspend fun saveSessionOrFail(response: HttpResponse): Result<Unit> {
-        if (!response.status.isSuccess()) return Result.failure(toAuthException(response))
+    private suspend fun saveSession(response: HttpResponse) {
+        if (!response.status.isSuccess()) throw toAuthException(response)
         val auth = response.body<AuthResponseDto>()
         tokenStore.saveSession(auth.userId, auth.accessToken, auth.refreshToken)
-        return Result.success(Unit)
     }
 
     private suspend fun toAuthException(response: HttpResponse): AuthException {
