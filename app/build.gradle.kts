@@ -6,7 +6,7 @@ plugins {
     alias(libs.plugins.kotlin.compose)
     id("kotlin-kapt")
 
-    id("org.jetbrains.kotlin.plugin.serialization") version "1.9.22"
+    alias(libs.plugins.kotlin.plugin.serialization)
 }
 
 android {
@@ -51,9 +51,21 @@ dependencies {
 
     // Ktor
     implementation("io.ktor:ktor-client-core:2.3.8")
-    implementation("io.ktor:ktor-client-cio:2.3.8")
+    // OkHttp, not CIO: CIO's TLS handshake doesn't implement the hostname-aware
+    // X509ExtendedTrustManager API that Android requires once the network security config
+    // has any <domain-config> block (ours does, for the debug-only cleartext exception) -
+    // without this, HTTPS to any other host (bible.helloao.org, etc.) throws
+    // "Domain specific configurations require that hostname aware checkServerTrusted(...)
+    // is used". OkHttp delegates through Android's trust manager correctly.
+    implementation("io.ktor:ktor-client-okhttp:2.3.8")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.8")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.8")
+    // Automatically attaches "Authorization: Bearer <token>" to backend requests and
+    // transparently retries with a refreshed token on a 401 - see HttpClientProvider.
+    implementation("io.ktor:ktor-client-auth:2.3.8")
+
+    // Encrypted on-disk storage for the access/refresh tokens - see data/local/TokenStore.kt
+    implementation("androidx.security:security-crypto:1.1.0")
 
 
     // Icons

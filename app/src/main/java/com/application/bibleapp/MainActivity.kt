@@ -32,7 +32,9 @@ import androidx.navigation.compose.rememberNavController
 import com.application.bibleapp.components.BibleTopBar
 import com.application.bibleapp.components.BookPickerTopBar
 import com.application.bibleapp.components.HomeTopBar
+import com.application.bibleapp.components.LoginTopBar
 import com.application.bibleapp.components.MainBottomBar
+import com.application.bibleapp.components.RegisterTopBar
 import com.application.bibleapp.components.SearchTopBar
 import com.application.bibleapp.components.SettingsTopBar
 import com.application.bibleapp.components.TopBar
@@ -42,6 +44,8 @@ import com.application.bibleapp.navigation.Navigation
 import com.application.bibleapp.navigation.Screen
 import com.application.bibleapp.ui.theme.BibleAppTheme
 import com.application.bibleapp.ui.theme.ThemeMode
+import com.application.bibleapp.viewmodel.AuthViewModel
+import com.application.bibleapp.viewmodel.AuthViewModelFactory
 import com.application.bibleapp.viewmodel.BibleViewModel
 import com.application.bibleapp.viewmodel.BibleViewModelFactory
 
@@ -58,6 +62,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             val bibleViewModel: BibleViewModel = viewModel(
                 factory = BibleViewModelFactory(context = this)
+            )
+            val authViewModel: AuthViewModel = viewModel(
+                factory = AuthViewModelFactory(context = this)
             )
 
             val navController = rememberNavController()
@@ -182,11 +189,19 @@ class MainActivity : ComponentActivity() {
                             Screen.VersePicker.route -> VersePickerTopBar { navController.popBackStack() }
                             Screen.VersionPicker.route -> VersionPickerTopBar { navController.popBackStack() }
                             Screen.More.route -> SettingsTopBar()
+                            Screen.Login.route -> LoginTopBar { navController.popBackStack() }
+                            Screen.Register.route -> RegisterTopBar { navController.popBackStack() }
                             else -> TopBar()
                         }
                     },
                     bottomBar = {
-                        if (currentRoute !in listOf(Screen.BookPicker.route, Screen.VersePicker.route)) {
+                        if (currentRoute !in listOf(
+                                Screen.BookPicker.route,
+                                Screen.VersePicker.route,
+                                Screen.Login.route,
+                                Screen.Register.route
+                            )
+                        ) {
                             MainBottomBar(
                                 currentRoute = currentRoute,
                                 bibleViewModel = bibleViewModel,
@@ -198,7 +213,7 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { paddingValues ->
-                    Navigation(navController, paddingValues, bibleViewModel)
+                    Navigation(navController, paddingValues, bibleViewModel, authViewModel)
                 }
             }
         }

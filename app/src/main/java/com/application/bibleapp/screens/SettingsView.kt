@@ -25,10 +25,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -46,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.Lifecycle
@@ -55,13 +58,16 @@ import com.application.bibleapp.ui.theme.Spacing
 import com.application.bibleapp.ui.theme.ThemeMode
 import com.application.bibleapp.ui.theme.VerseTextScale
 import com.application.bibleapp.ui.theme.scaledBy
+import com.application.bibleapp.viewmodel.AuthViewModel
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsView(
     bibleViewModel: BibleViewModel,
-    modifier: Modifier = Modifier
+    authViewModel: AuthViewModel,
+    modifier: Modifier = Modifier,
+    onSignInClick: () -> Unit
 ) {
     val themeMode by bibleViewModel.themeMode.collectAsState()
     val verseTextScale by bibleViewModel.verseTextScale.collectAsState()
@@ -75,6 +81,12 @@ fun SettingsView(
             .padding(Spacing.lg),
         verticalArrangement = Arrangement.spacedBy(Spacing.xl)
     ) {
+        SettingsSection(title = "Account") {
+            AccountSection(authViewModel = authViewModel, onSignInClick = onSignInClick)
+        }
+
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
         SettingsSection(title = "Appearance") {
             // Measured on device: "Small"+"Default"+"Large"+"Extra Large" together
             // need ~1024px on a 360dp-wide phone, ~40px more than the row actually
@@ -276,6 +288,120 @@ private fun SettingsSection(
         )
         content()
     }
+}
+
+@Composable
+private fun AccountSection(
+    authViewModel: AuthViewModel,
+    onSignInClick: () -> Unit
+) {
+    val isLoggedIn by authViewModel.isLoggedIn.collectAsState()
+    val currentUser by authViewModel.currentUser.collectAsState()
+    var showDeleteDialog by remember { mutableStateOf(false) }
+
+    if (isLoggedIn) {
+        Text(
+            text = currentUser?.email ?: "Signed in",
+            style = MaterialTheme.typography.bodyLarge
+        )
+        Text(
+            text = "Your highlights, notes, and reading progress sync across every device " +
+                "you sign in on.",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(Spacing.md)) {
+            TextButton(onClick = { authViewModel.logout() }) {
+                Text("Sign out")
+            }
+            TextButton(onClick = { showDeleteDialog = true }) {
+                Text("Delete account", color = MaterialTheme.colorScheme.error)
+            }
+        }
+    } else {
+        Text(
+            text = "Sign in to sync your highlights, notes, and reading progress across devices.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Button(onClick = onSignInClick) {
+            Text("Sign in")
+        }
+    }
+
+    if (showDeleteDialog) {
+        DeleteAccountDialog(
+            onDismiss = { showDeleteDialog = false },
+            onConfirm = { password, onError ->
+                authViewModel.deleteAccount(password) { errorMessage ->
+                    if (errorMessage == null) {
+                        showDeleteDialog = false
+                    } else {
+                        onError(errorMessage)
+                    }
+                }
+            }
+        )
+    }
+}
+
+/**
+ * Re-asks for the password before deleting — the backend requires this too
+ * (server/docs/api_contract.md decision 5), since a destructive, irreversible action
+ * deserves a stronger check than "whoever is holding a still-valid access token."
+ */
+@Composable
+private fun DeleteAccountDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (password: String, onError: (String) -> Unit) -> Unit
+) {
+    var password by remember { mutableStateOf("") }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
+    var isSubmitting by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Delete account?") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Text(
+                    "This permanently deletes your account and all synced highlights, notes, " +
+                        "and reading progress. This can't be undone."
+                )
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        errorMessage = null
+                    },
+                    label = { Text("Confirm your password") },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                errorMessage?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = password.isNotBlank() && !isSubmitting,
+                onClick = {
+                    isSubmitting = true
+                    onConfirm(password) { error ->
+                        isSubmitting = false
+                        errorMessage = error
+                    }
+                }
+            ) {
+                Text("Delete", color = MaterialTheme.colorScheme.error)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("Cancel") }
+        }
+    )
 }
 
 /** "8:05 AM" when the device uses a 12-hour clock, "08:05" when it uses 24-hour —

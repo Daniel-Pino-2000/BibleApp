@@ -14,17 +14,21 @@ import com.application.bibleapp.data.repository.BibleRepository
 import com.application.bibleapp.screens.BibleView
 import com.application.bibleapp.screens.BookPickerView
 import com.application.bibleapp.screens.HomeView
+import com.application.bibleapp.screens.LoginView
+import com.application.bibleapp.screens.RegisterView
 import com.application.bibleapp.screens.SearchView
 import com.application.bibleapp.screens.SettingsView
 import com.application.bibleapp.screens.VersePickerView
 import com.application.bibleapp.screens.VersionPickerView
+import com.application.bibleapp.viewmodel.AuthViewModel
 import com.application.bibleapp.viewmodel.BibleViewModel
 
 @Composable
 fun Navigation(
     navController: NavHostController,
     padding: PaddingValues,
-    bibleViewModel: BibleViewModel
+    bibleViewModel: BibleViewModel,
+    authViewModel: AuthViewModel
 ) {
     NavHost(
         navController = navController,
@@ -57,7 +61,36 @@ fun Navigation(
 
 
         composable(Screen.More.route) {
-            SettingsView(bibleViewModel, modifier = Modifier.padding(padding))
+            SettingsView(
+                bibleViewModel = bibleViewModel,
+                authViewModel = authViewModel,
+                modifier = Modifier.padding(padding),
+                onSignInClick = { navController.navigate(Screen.Login.route) }
+            )
+        }
+
+        composable(Screen.Login.route) {
+            LoginView(
+                authViewModel = authViewModel,
+                modifier = Modifier.padding(padding),
+                onLoginSuccess = {
+                    bibleViewModel.syncReadingProgressFromServer()
+                    navController.popBackStack()
+                },
+                onNavigateToRegister = { navController.navigate(Screen.Register.route) }
+            )
+        }
+
+        composable(Screen.Register.route) {
+            RegisterView(
+                authViewModel = authViewModel,
+                modifier = Modifier.padding(padding),
+                onRegisterSuccess = {
+                    bibleViewModel.syncReadingProgressFromServer()
+                    navController.popBackStack(Screen.More.route, inclusive = false)
+                },
+                onNavigateToLogin = { navController.popBackStack() }
+            )
         }
 
         composable(Screen.BookPicker.route) {

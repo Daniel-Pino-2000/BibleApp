@@ -18,4 +18,7 @@ sealed class Screen(val route: String, val title: String) {
     }
 
     object VersionPicker: Screen("version_picker", "Select Version")
+
+    object Login: Screen("login", "Sign In")
+    object Register: Screen("register", "Create Account")
 }

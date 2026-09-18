@@ -4,6 +4,7 @@ import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
+import com.application.bibleapp.data.remote.HttpClientProvider
 import com.application.bibleapp.worker.DailyVerseScheduler
 
 /**
@@ -19,6 +20,9 @@ class BibleApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // Must happen before anything touches HttpClientProvider.client — it reads this at
+        // client-creation time to wire up encrypted token storage for the backend's auth.
+        HttpClientProvider.init(this)
         createDailyVerseNotificationChannel()
         ensureDailyVerseJobsScheduled(this)
     }

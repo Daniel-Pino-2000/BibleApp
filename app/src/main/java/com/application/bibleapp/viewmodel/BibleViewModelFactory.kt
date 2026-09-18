@@ -7,7 +7,9 @@ import com.application.bibleapp.data.model.BibleSourceType
 import com.application.bibleapp.data.model.SelectedBibleVersion
 import com.application.bibleapp.data.remote.HelloAoBibleDataSource
 import com.application.bibleapp.data.remote.OurMannaBibleDataSource
+import com.application.bibleapp.data.repository.AuthRepository
 import com.application.bibleapp.data.repository.BibleRepository
+import com.application.bibleapp.data.repository.ReadingProgressRepository
 
 class BibleViewModelFactory(private val context: Context) : ViewModelProvider.Factory {
 
@@ -20,7 +22,11 @@ class BibleViewModelFactory(private val context: Context) : ViewModelProvider.Fa
                 daily = OurMannaBibleDataSource()
             )
 
-            val viewModel = BibleViewModel(repository)
+            val viewModel = BibleViewModel(
+                repository = repository,
+                authRepository = AuthRepository(context),
+                readingProgressRepository = ReadingProgressRepository()
+            )
 
             @Suppress("UNCHECKED_CAST")
             return viewModel as T

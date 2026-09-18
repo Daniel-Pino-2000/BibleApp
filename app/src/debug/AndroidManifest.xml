@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Merged into the main manifest for debug builds only (the Gradle Android plugin merges
+  src/debug/AndroidManifest.xml over src/main's for the debug variant, and src/release's
+  the same way for release) - this is how the cleartext-HTTP allowance for the local dev
+  backend stays out of the release build entirely, not just disabled by a flag.
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application android:networkSecurityConfig="@xml/network_security_config" />
+</manifest>
