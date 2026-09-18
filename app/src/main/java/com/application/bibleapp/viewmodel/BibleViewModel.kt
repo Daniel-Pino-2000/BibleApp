@@ -331,6 +331,7 @@ class BibleViewModel(
             try {
                 _availableVersions.value = repository.getAllVersions()
             } catch (e: Exception) {
+                android.util.Log.e("BibleViewModel", "Failed to load available Bible versions", e)
                 _versionsError.value = e.message
             } finally {
                 _isLoadingVersions.value = false

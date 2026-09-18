@@ -4,7 +4,7 @@ import android.content.Context
 import com.application.bibleapp.data.local.TokenStore
 import io.ktor.client.HttpClient
 import io.ktor.client.call.body
-import io.ktor.client.engine.cio.CIO
+import io.ktor.client.engine.okhttp.OkHttp
 import io.ktor.client.plugins.HttpTimeout
 import io.ktor.client.plugins.auth.Auth
 import io.ktor.client.plugins.auth.providers.BearerTokens
@@ -13,6 +13,7 @@ import io.ktor.client.plugins.contentnegotiation.ContentNegotiation
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.http.ContentType
+import io.ktor.http.Url
 import io.ktor.http.contentType
 import io.ktor.http.isSuccess
 import io.ktor.serialization.kotlinx.json.json
@@ -80,8 +81,11 @@ object HttpClientProvider {
      */
     val client: HttpClient by lazy {
 
-        // Create HttpClient using CIO engine (good async I/O engine)
-        HttpClient(CIO) {
+        // OkHttp, not CIO - see the dependency comment in app/build.gradle.kts for why:
+        // CIO's TLS handshake breaks HTTPS to any host once the app's network security
+        // config has a <domain-config> block, which ours does (see src/debug's
+        // network_security_config.xml).
+        HttpClient(OkHttp) {
 
             // Install automatic content negotiation
             install(ContentNegotiation) {
@@ -105,6 +109,16 @@ object HttpClientProvider {
             // never have to think about the access token's 15-minute expiry themselves.
             install(Auth) {
                 bearer {
+                    // Without this, the Auth plugin's default behavior attaches our
+                    // backend's bearer token to EVERY request through this shared client -
+                    // including the third-party Bible/verse APIs (bible.helloao.org,
+                    // OurManna) - leaking the user's access token to unrelated services.
+                    // Only skip attaching it when the request isn't going to our own
+                    // backend host.
+                    sendWithoutRequest { request ->
+                        request.url.host == Url(BASE_URL).host
+                    }
+
                     // Called before every request that needs auth. Reading fresh from
                     // TokenStore each time (not a cached value) so a login/logout that
                     // happened since this client was created is always picked up.

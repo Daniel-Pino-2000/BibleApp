@@ -51,7 +51,13 @@ dependencies {
 
     // Ktor
     implementation("io.ktor:ktor-client-core:2.3.8")
-    implementation("io.ktor:ktor-client-cio:2.3.8")
+    // OkHttp, not CIO: CIO's TLS handshake doesn't implement the hostname-aware
+    // X509ExtendedTrustManager API that Android requires once the network security config
+    // has any <domain-config> block (ours does, for the debug-only cleartext exception) -
+    // without this, HTTPS to any other host (bible.helloao.org, etc.) throws
+    // "Domain specific configurations require that hostname aware checkServerTrusted(...)
+    // is used". OkHttp delegates through Android's trust manager correctly.
+    implementation("io.ktor:ktor-client-okhttp:2.3.8")
     implementation("io.ktor:ktor-client-content-negotiation:2.3.8")
     implementation("io.ktor:ktor-serialization-kotlinx-json:2.3.8")
     // Automatically attaches "Authorization: Bearer <token>" to backend requests and
